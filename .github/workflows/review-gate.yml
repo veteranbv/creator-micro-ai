@@ -1,0 +1,79 @@
+name: review-gate
+
+# Bridges Codex review comments into a required CheckRun. Codex posts findings
+# as PR review comments (not as CheckRuns), so the standard
+# `required_status_checks` mechanism cannot gate on them directly. This
+# workflow runs once per pushed head SHA and fails when Codex has flagged a
+# blocking-severity finding. Codex review submissions are handled by
+# `review-gate-retrigger.yml`, which re-runs this workflow's gate job IN PLACE
+# (a new attempt of the same check suite) rather than starting a parallel run.
+#
+# Severity mapping (see `.github/scripts/review_gate.py`):
+#   Codex  `P0 Badge` / `P1 Badge`  -> blocking
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  # Reopened PRs rerun their existing gate through the retrigger workflow.
+  # Deliberately NOT `pull_request_review`: a review-event run creates a
+  # second check suite with a same-named check run on the same head SHA, and
+  # required-status evaluation demands EVERY suite's run pass. Review events
+  # rerun the existing gate job via `review-gate-retrigger.yml` instead.
+  #
+  # Note: GitHub does NOT expose `pull_request_review_thread` as a workflow
+  # trigger (only as a webhook), so clicking "Resolve conversation" doesn't
+  # auto-fire this gate. After resolving threads, rerun the existing gate job
+  # from Actions without changing the reviewed commit.
+
+# One run per head SHA, never cancelled: a cancelled conclusion on the
+# current head blocks required-status evaluation. Runs for superseded heads exit early on their
+# own. review_gate.py returns success as soon as it sees the PR head move or
+# the PR merge, because a post-merge timeout cannot protect the completed merge,
+# so CI minutes stay bounded without cancel-in-progress.
+concurrency:
+  group: review-gate-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+  cancel-in-progress: false
+
+permissions:
+  # Audited against every endpoint review_gate.py touches:
+  #   /repos/{r}/pulls/{n}             -> pull-requests: read
+  #   /repos/{r}/pulls/{n}/reviews     -> pull-requests: read
+  #   /repos/{r}/pulls/{n}/comments    -> pull-requests: read
+  #   /repos/{r}/commits/{sha}         -> contents: read
+  #   /repos/{r}/commits/{sha}/check-runs -> checks: read
+  checks: read
+  contents: read
+  issues: read
+  pull-requests: read
+
+# The gate intentionally does not post `@codex review`. GitHub Actions comments
+# are authored by a bot account that cannot authorize Codex. A maintainer must
+# request review with the exact current head SHA. The gate verifies both the
+# owner identity and SHA, keeping contributor PRs from advancing through the
+# full lifecycle without owner action.
+jobs:
+  review-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    # Explicit job-level permissions (mirrors the workflow-level audit) so
+    # static review tools can see at a glance that this job has what it needs.
+    permissions:
+      checks: read
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # PR code must not be able to weaken its own required review verdict.
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Run review gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 .github/scripts/review_gate.py
