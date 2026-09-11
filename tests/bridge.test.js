@@ -37,3 +37,14 @@ test('mock USB emits only protocol data and closes when the parent closes',async
   assert.equal(token,'cc.worklouder.ai.chatgpt');assert.equal(disconnected,1);assert.ok(exited);
   assert.deepEqual(output.trim().split('\n').map(JSON.parse),[{type:'ready',layer:1},{type:'applied',requestId:7,layer:2}]);
 });
+test('a stalled vendor operation exits the child for parent recovery',async()=>{
+ const io=new EventEmitter();io.stdin=new PassThrough();io.stdout=new PassThrough();
+ let exitCode;io.exit=code=>{exitCode=code;};
+ const kit={WLDeviceDiscovery:class{findWLDevices(){return [{deviceType:'creator_micro_v2'}];}},
+  WLDeviceCommImpl:class{async connect(){return true;}async disconnect(){}},
+  WLRPCApi:class{getDeviceStatus(){return new Promise(()=>{});}}};
+ await run(kit,io,{operationTimeoutMs:10});
+ await new Promise(resolve=>setTimeout(resolve,30));
+ assert.equal(exitCode,1);
+ io.stdin.end();
+});

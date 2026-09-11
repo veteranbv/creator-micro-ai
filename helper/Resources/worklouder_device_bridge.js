@@ -40,15 +40,26 @@ function frameInput(stream, accept, invalid) {
   });
 }
 
-async function run(kit, io = process) {
+async function run(kit, io = process, { operationTimeoutMs = 5000 } = {}) {
   let communication, api, lastLayer, stopped = false, reconnectAfter = 0;
   let work = Promise.resolve(), pending = 0, pollPending = false;
-  const emit = message => io.stdout.write(`${JSON.stringify(message)}\n`);
+  const emit = message => { if (!stopped) io.stdout.write(`${JSON.stringify(message)}\n`); };
   const fail = requestId => emit({ type: 'error', ...(requestId ? { requestId } : {}) });
   const queue = task => {
     if (stopped || pending >= 8) { fail(); return; }
     pending++;
-    work = work.then(task).catch(() => fail()).finally(() => { pending--; });
+    work = work.then(async () => {
+      if (stopped) return;
+      // A never-settling vendor RPC cannot be cancelled safely in-process.
+      // Exit this child so the parent can start a fresh USB connection.
+      const deadline = setTimeout(() => {
+        stopped = true;
+        clearInterval(interval);
+        io.exit(1);
+      }, operationTimeoutMs);
+      try { await task(); }
+      finally { clearTimeout(deadline); }
+    }).catch(() => fail()).finally(() => { pending--; });
   };
   const disconnect = async () => {
     const current = communication;

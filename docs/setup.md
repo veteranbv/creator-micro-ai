@@ -28,7 +28,7 @@ This reads the device and validates the keymap schema. It does not certify the e
 bash scripts/device.sh --apply
 ```
 
-The tool rereads the file to verify the write. If it fails or times out, do not assume the device was unchanged. Restore the reported recovery copy with `bash scripts/device.sh --restore /absolute/path/to/keymap.before.json`. Keep that backup private. Restart Input after a successful write so its radial labels refresh. If Input later overwrites the profile from stale local state, stop and recheck the on-device configuration.
+The tool rereads the file to verify the write. If it fails or times out, do not assume the device was unchanged. Restore the reported recovery copy with `bash scripts/device.sh --restore /absolute/path/to/keymap.before.json`. Restore validates that backup and can replace a damaged or unreadable current keymap. If the current file can be read, it is saved before replacement; otherwise no new recovery copy is possible. Keep backups private. Restart Input after a successful write so its radial labels refresh. If Input later overwrites the profile from stale local state, stop and recheck the on-device configuration.
 
 ## Build and install the helper
 

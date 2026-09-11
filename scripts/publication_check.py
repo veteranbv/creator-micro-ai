@@ -36,6 +36,7 @@ SOURCE_REFERENCES = {
     "source.name", "path.parts", "re.search", "relative.parts", "largeRequest.group",
     "pair.group", "twoButtonTree.group", "actions.map", "l.name", "m.id",
     "p.macros.map", "sectors.map", "events.map", "user.email", "user.name",
+    "next.map", "controls.chat", "temporary.name", "0.radio", "self.radio",
 }
 SOURCE_EXTENSIONS = {".py", ".js", ".swift", ".yml", ".yaml"}
 EMAIL = re.compile(rb"[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
@@ -82,11 +83,38 @@ def git(*args):
     return subprocess.check_output(["git", *args], cwd=ROOT)
 
 
+def tag_findings():
+    issues, seen = [], set()
+    for line in git("for-each-ref", "--format=%(objectname)", "refs/tags").decode().splitlines():
+        oid = line
+        while oid not in seen:
+            seen.add(oid)
+            kind = git("cat-file", "-t", oid).decode().strip()
+            if kind == "tag":
+                data = git("cat-file", "tag", oid)
+                header = data.partition(b"\n\n")[0]
+                tagger = re.search(rb"(?m)^tagger .* <([^<>]+)> ", header)
+                if not tagger or not identity_allowed(tagger[1].decode(errors="replace")):
+                    issues.append((oid[:12], "non-private tagger email"))
+                issues.extend((oid[:12], issue) for issue in content_findings("tag-message", data))
+                target = re.search(rb"(?m)^object ([0-9a-f]+)$", header)
+                if not target:
+                    issues.append((oid[:12], "invalid tag target"))
+                    break
+                oid = target[1].decode()
+            elif kind == "blob":
+                issues.extend((oid[:12], issue) for issue in content_findings("tag-blob", git("cat-file", "blob", oid)))
+                break
+            else:
+                break
+    return issues
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--all-history", action="store_true")
     args = parser.parse_args()
-    issues = []
+    issues = tag_findings()
     # Check the index's file list against working files, including staged additions.
     for name in git("ls-files", "-z").decode().split("\0"):
         if not name:

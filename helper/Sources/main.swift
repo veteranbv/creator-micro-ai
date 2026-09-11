@@ -33,15 +33,6 @@ enum WorkspaceMode: String, CaseIterable {
         }
     }
 
-    var workspaceButtonLabels: [String] {
-        switch self {
-        case .codex: return ["Codex"]
-        case .chatgpt: return ["ChatGPT", "Home"]
-        case .claudeCode: return ["Code"]
-        case .claude: return ["Chat and Cowork", "Chat", "Home"]
-        }
-    }
-
     static func from(layer: Int) -> WorkspaceMode? {
         allCases.first(where: { $0.layer == layer })
     }
@@ -71,17 +62,15 @@ private func stringAttribute(_ element: AXUIElement, _ name: String) -> String? 
     return nil
 }
 
-private func elements(for app: NSRunningApplication, limit: Int = 2_000) -> [AXUIElement] {
-    var queue: [AXUIElement] = [AXUIElementCreateApplication(app.processIdentifier)]
-    var cursor = 0
-    while cursor < queue.count, cursor < limit {
-        let element = queue[cursor]
-        cursor += 1
-        if let children = attribute(element, kAXChildrenAttribute) as? [AXUIElement] {
-            queue.append(contentsOf: children.prefix(max(0, limit - queue.count)))
-        }
-    }
-    return Array(queue.prefix(limit))
+private func workspaceControls(in app: NSRunningApplication) -> (chat: AXUIElement, code: AXUIElement)? {
+    guard app.bundleIdentifier == "com.anthropic.claudefordesktop" else { return nil }
+    let root = AXUIElementCreateApplication(app.processIdentifier)
+    guard let raw = attribute(root, kAXFocusedWindowAttribute),
+          CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
+    let window = unsafeBitCast(raw, to: AXUIElement.self)
+    return WorkspaceSelection.controls(root: window, labels: comparableLabels,
+        children: { attribute($0, kAXChildrenAttribute) as? [AXUIElement] ?? [] },
+        isRadio: { stringAttribute($0, kAXRoleAttribute) == "AXRadioButton" })
 }
 
 private func detectMode() -> WorkspaceMode? {
@@ -98,15 +87,11 @@ private func detectMode() -> WorkspaceMode? {
         return nil
 
     case "com.anthropic.claudefordesktop":
-        // Current Claude exposes mode selection as radio buttons.
-        for element in elements(for: app) {
-            guard stringAttribute(element, kAXRoleAttribute) == "AXRadioButton",
-                  (attribute(element, kAXValueAttribute) as? NSNumber)?.boolValue == true else { continue }
-            let labels = comparableLabels(for: element)
-            if labels.contains("Code") { return .claudeCode }
-            if labels.contains("Chat and Cowork") || labels.contains("Chat") { return .claude }
-        }
-        return nil
+        guard let controls = workspaceControls(in: app),
+              let chat = attribute(controls.chat, kAXValueAttribute) as? NSNumber,
+              let code = attribute(controls.code, kAXValueAttribute) as? NSNumber,
+              chat.boolValue != code.boolValue else { return nil }
+        return code.boolValue ? .claudeCode : .claude
 
     default:
         return nil
@@ -120,17 +105,13 @@ private func comparableLabels(for element: AXUIElement) -> [String] {
         .filter { !$0.isEmpty }
 }
 
-private func pressWorkspaceButton(in app: NSRunningApplication, labels: [String]) -> Bool {
-    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier else { return false }
-    let wanted = labels.map { $0.lowercased() }
-    for element in elements(for: app) {
-        guard ["AXButton", "AXRadioButton", "AXTab"].contains(stringAttribute(element, kAXRoleAttribute) ?? "") else { continue }
-        let actual = comparableLabels(for: element).map { $0.lowercased() }
-        if wanted.contains(where: { candidate in actual.contains(candidate) }) {
-            return AXUIElementPerformAction(element, kAXPressAction as CFString) == .success
-        }
-    }
-    return false
+private func pressWorkspaceButton(in app: NSRunningApplication, mode: WorkspaceMode) -> Bool {
+    guard [.claude, .claudeCode].contains(mode),
+          NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
+          let controls = workspaceControls(in: app) else { return false }
+    let target = mode == .claudeCode ? controls.code : controls.chat
+    guard (attribute(target, kAXEnabledAttribute) as? NSNumber)?.boolValue != false else { return false }
+    return AXUIElementPerformAction(target, kAXPressAction as CFString) == .success
 }
 
 private var activationGeneration = 0
@@ -202,7 +183,7 @@ private func activate(_ mode: WorkspaceMode, completion: @escaping (Bool) -> Voi
                     finish(false)
                     return
                 }
-                _ = pressWorkspaceButton(in: app, labels: mode.workspaceButtonLabels)
+                _ = pressWorkspaceButton(in: app, mode: mode)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { check(attempt + 1) }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { check(0) }
