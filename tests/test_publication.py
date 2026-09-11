@@ -79,6 +79,29 @@ class PublicationTests(unittest.TestCase):
             self.assertIn("unapproved domain", output.getvalue())
             self.assertNotIn("a-private-project", output.getvalue())
 
+    def test_annotated_tags_are_checked(self):
+        with tempfile.TemporaryDirectory(prefix="publication-tag-test-") as directory:
+            root = pathlib.Path(directory)
+            env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+            def git(*args):
+                subprocess.run(["git", *args], cwd=root, env=env, check=True, capture_output=True)
+            git("init", "-b", "main")
+            git("config", "user.name", "Fixture")
+            git("config", "user.email", "123+fixture@users.noreply.github.com")
+            (root / "README.md").write_text("Public fixture")
+            git("add", "README.md")
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Add fixture")
+            git("tag", "-a", "clean-fixture", "-m", "Public fixture")
+            with mock.patch.object(publication_check, "ROOT", root):
+                self.assertFalse(publication_check.tag_findings())
+            git("tag", "-a", "fixture", "-m", "private-project" + ".ai")
+            with mock.patch.object(publication_check, "ROOT", root):
+                self.assertTrue(publication_check.tag_findings())
+            git("config", "user.email", "person@example.test")
+            git("tag", "-a", "identity-fixture", "-m", "Public fixture")
+            with mock.patch.object(publication_check, "ROOT", root):
+                self.assertIn("non-private tagger email", [issue for _,issue in publication_check.tag_findings()])
+
 
 if __name__ == "__main__":
     unittest.main()
