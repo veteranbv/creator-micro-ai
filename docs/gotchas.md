@@ -1,0 +1,14 @@
+# Behavior and troubleshooting
+
+- **The wide dictation bar uses one switch.** Its second switch is disabled. The profile sends explicit 40 ms press/release events and no paste step. Preserve those settings to avoid duplicate dictation. If insertion repeats, compare a physical tap with the keyboard shortcut and check that only one helper is running.
+- **Layer order is not app identity.** Layers 1/2 are Codex/Chat in ChatGPT; 3/4 are Code/Chat in Claude. All layers send identical action shortcuts. Helper actions use the foreground app, by design.
+- **Tab selection and app activation are separate.** Bringing ChatGPT forward is insufficient. Its view switches use Control+1/3, posted once after focus is established. ChatGPT view detection is not inferred from conversation titles.
+- **Shortcut overrides can block actions.** ChatGPT model selection uses Control+Shift+M; Superwhisper dictation uses Control+Shift+D. Check both shortcuts for conflicts with other applications. Restore the required shortcut only after checking what the conflicting binding does.
+- **A Copy tooltip is not an accessibility label.** The visible tooltip can say Copy response while the actual button label is Copy. The helper scopes it to the latest assistant response. Claude may hide the message toolbar until its reveal control is pressed.
+- **Claude permission buttons change names.** Allow once can have suffix 2 or 3, depending on whether Always allow is present. Approval requires one recognized permission group with a unique Allow once/Deny pair. Ambiguity produces a beep, not a blind Return.
+- **Y/X are not text editing keys.** With no permission prompt they should not submit, erase or type into a draft. The hand key is ordinary Escape, which has broader app-defined behavior.
+- **Eight joystick directions use screen coordinates.** Down is the sector at quarter-turn; Up is three-quarter-turn. Diagonals are Select all, Tab, Copy and Paste. Copy selection and Copy response are intentionally different controls.
+- **Input can cache old radial labels.** Restart Input after a verified device write before assuming the firmware mapping is wrong. Native key labels come from Input and may use lowercase words or glyphs.
+- **The dial is arrow navigation, not native scrolling.** Rotating sends the saved Up/Down mapping. Natural-scrolling preferences do not invert key events. Test physical rotation before changing it.
+- **Accessibility trust follows the installed build.** Ad-hoc rebuilding can require removing and re-adding the app in Accessibility. Changing permissions is a user step, not something the installer bypasses.
+- **Apps update underneath us.** Missing or changed selectors should fail closed. English labels, app paths, model shortcuts and internal Input APIs are compatibility constraints, not permanent guarantees.

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Creator Micro AI · layout reference</title>
+<style>
+:root{color-scheme:dark;--accent:#3b9cff;--muted:#a9b8c4}*{box-sizing:border-box}body{margin:0;background:#10151b;color:#f4f2ec;font:16px/1.5 system-ui,sans-serif}main{max-width:1100px;margin:auto;padding:36px 24px}header{max-width:800px}small,.eyebrow{color:var(--muted)}.eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:12px}h1{font-size:clamp(30px,5vw,48px);letter-spacing:-.04em;margin:6px 0}h2{font-size:18px;margin:20px 0 12px}p{margin:8px 0 16px}a{color:#8fdfff}button{font:inherit;color:inherit;cursor:pointer}button:focus-visible{outline:3px solid #fff;outline-offset:4px}.layers{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0}.layers button{padding:9px 14px;border:1px solid #46515c;border-radius:99px;background:#1f2830}.layers button[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}.boards{display:grid;grid-template-columns:1fr 1fr;gap:32px}.device{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:20px;border:3px solid var(--accent);border-radius:30px;background:#20262b;box-shadow:0 0 0 9px #090d11,0 15px 45px #0008;margin:20px 9px}.key{aspect-ratio:1;border:1px solid #53565a;border-bottom:6px solid #090c0f;border-radius:19px;background:linear-gradient(145deg,#393e42,#191d20);box-shadow:inset 0 1px 3px #ffffff20;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:5px;font-size:clamp(12px,1.5vw,16px);line-height:1.2}.caps .key{font-size:30px}.key small{font-size:10px;margin-top:7px}.key.wide{grid-column:span 2;aspect-ratio:2.1}.key.clear{background:radial-gradient(ellipse,#16cdedaa,#d0f2ffbb);color:#091c2a;border-color:#bdeafa}.key.round{border-radius:50%}.key.sensor{border:0;background:#10181d;box-shadow:none;font-size:12px}.key.selected{outline:3px solid #f8e8a9;outline-offset:2px}.detail{border-left:3px solid var(--accent);background:#1b252e;padding:20px;margin-top:30px;border-radius:0 14px 14px 0;min-height:112px}.detail strong{font-size:21px}.detail p{margin-bottom:0}.lower{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:22px}.stick{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:330px}.stick div{border:1px solid #435360;border-radius:12px;padding:12px;text-align:center;background:#202b34}.stick .center{display:grid;place-items:center;border-radius:50%;background:#090e13;color:var(--muted)}kbd{font:inherit;color:#fff}footer{border-top:1px solid #34404a;margin-top:35px;padding-top:20px;color:var(--muted);font-size:13px}@media(max-width:650px){main{padding:24px 18px}.boards,.lower{grid-template-columns:1fr}.boards{gap:4px}.device{max-width:430px;margin:20px auto}.key{font-size:14px}.caps .key{font-size:30px}.boards h2{margin-top:25px}.detail{min-height:150px}}
+</style>
+<main>
+<header><div class="eyebrow">Independent fan-made configuration kit</div><h1>One layout. Four workspaces.</h1><p>Built on Work Louder's Creator Micro 2. Touch a key on either diagram to see its job. This reference does not send commands to your computer.</p></header>
+<nav class="layers" aria-label="Workspace layer">
+<button data-layer="1" aria-pressed="true">1 · Codex</button><button data-layer="2" aria-pressed="false">2 · ChatGPT</button><button data-layer="3" aria-pressed="false">3 · Claude Code</button><button data-layer="4" aria-pressed="false">4 · Claude Chat</button>
+</nav><p id="workspace">Layer 1 brings forward Codex inside ChatGPT desktop.</p>
+<div class="boards"><section><h2>What your hands see</h2><small>USB cable at the top. Symbols are generic stand-ins for your caps.</small><div class="device caps" id="caps"></div></section><section><h2>What the controls do</h2><small>The jobs stay the same across all four layers.</small><div class="device" id="actions"></div></section></div>
+<section class="detail" aria-live="polite" aria-atomic="true"><strong id="action-title">Dictate</strong><p id="action-detail">The wide clear bar sends Control+Shift+D once per tap. Superwhisper handles transcription and insertion; the helper adds no paste.</p></section>
+<div class="lower"><section><h2>The eight-way joystick</h2><div class="stick"><div>↖<br><kbd>⌘A</kbd><br><small>Select all</small></div><div>↑<br><small>Up arrow</small></div><div>↗<br><kbd>Tab</kbd></div><div>←<br><small>Left arrow</small></div><div class="center">Joystick</div><div>→<br><small>Right arrow</small></div><div>↙<br><kbd>⌘C</kbd><br><small>Copy selection</small></div><div>↓<br><small>Down arrow</small></div><div>↘<br><kbd>⌘V</kbd><br><small>Paste</small></div></div></section><section><h2>Three useful distinctions</h2><p><b>Copy response</b> presses the latest assistant response's Copy control. Joystick <b>⌘C</b> copies your selection.</p><p><b>Y / X</b> act on a visible permission request. Y is <b>Allow once</b>, never Always allow. Missing or ambiguous controls produce no approval.</p><p><b>Layer switching</b> changes apps/views. Other helper actions follow the app currently in front, even if it differs from the selected layer.</p></section></div>
+<footer>This kit celebrates and builds on <a href="https://worklouder.cc/creator-micro-2">Work Louder's platform</a>. It does not replace Input or firmware and is not an official Work Louder release. No vendor logo or keycap artwork is reproduced in this diagram. <a href="https://github.com/veteranbv/creator-micro-ai/blob/main/docs/gotchas.md">Setup gotchas</a>.</footer>
+</main>
+<script>
+const controls=[
+ ['dial','◉','Navigate / Search','round','Turn: Up/Down arrows. Press: search in the supported foreground app. Dial rotation follows the saved device profile.'],
+ ['new','✎','New chat','','Command+N. Starts a new chat/session where the foreground app supports it.'],
+ ['escape','✋','Escape','','Escape. Dismisses a menu or popup according to the foreground app.'],
+ ['joystick','✣','8-way joystick','round','Eight directions: arrows on cardinal directions, Select all at upper-left, Tab upper-right, Copy lower-left, Paste lower-right.'],
+ ['context','↗','Context @','','Shift+2 inserts @ on the supported US keyboard layout. The foreground app decides which context menu opens.'],
+ ['backspace','←','Backspace','','Deletes backwards in the focused field. Hold repeats character deletion; this is not a delete-word macro.'],
+ ['undo','↶','Undo','','Command+Z in the foreground app.'],
+ ['model','◉','Choose model','','Opens the model picker: the desktop shortcut in ChatGPT, or the matching model control in Claude.'],
+ ['copy','▣','Copy response','','Copies the latest recognized assistant response. It does not read the clipboard and is not ordinary Command+C.'],
+ ['approve','Y','Allow once','','Approves one visible, uniquely identified permission request in the supported foreground app. Never selects Always allow.'],
+ ['deny','X','Deny','','Denies the visible, uniquely identified permission request. It does not type X or submit your draft.'],
+ ['newline','○','Newline','clear','Shift+Return inserts a newline where supported. It does not submit.'],
+ ['layer','LAYER','Next workspace','sensor round','The device layer sensor cycles the four workspaces. The helper brings the corresponding desktop view forward.'],
+ ['dictate','○ ○','Dictate','wide clear','The wide clear bar sends Control+Shift+D once per tap. Superwhisper handles transcription and insertion; the helper adds no paste.'],
+ ['submit','➤','Submit','','Return. Sends the draft when the composer has focus. In other contexts Return acts on the focused control.']
+];
+for(const board of ['caps','actions'])for(const [id,glyph,title,style,detail] of controls){
+ const b=document.createElement('button');b.type='button';b.className='key '+style;b.dataset.action=id;b.setAttribute('aria-label',title);b.textContent=board==='caps'?glyph:title;
+ if(board==='caps'&&id==='context'){const label=document.createElement('small');label.textContent='chain cap';b.append(label);}
+ b.addEventListener('click',()=>select(id));b.addEventListener('focus',()=>select(id));document.getElementById(board).append(b);
+}
+function select(id){const control=controls.find(c=>c[0]===id);document.getElementById('action-title').textContent=control[2];document.getElementById('action-detail').textContent=control[4];document.querySelectorAll('[data-action]').forEach(b=>b.classList.toggle('selected',b.dataset.action===id));}
+const modes=['Codex inside ChatGPT desktop','Chat inside ChatGPT desktop','Code inside Claude desktop','Chat inside Claude desktop'];
+const colors=['#3b9cff','#31b38b','#d98955','#c57850'];
+document.querySelectorAll('[data-layer]').forEach(button=>button.addEventListener('click',()=>{const index=Number(button.dataset.layer)-1;document.documentElement.style.setProperty('--accent',colors[index]);document.getElementById('workspace').textContent=`Layer ${index+1} brings forward ${modes[index]}.`;document.querySelectorAll('[data-layer]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));}));select('dictate');
+</script>
+</html>
