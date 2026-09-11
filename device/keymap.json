@@ -1,0 +1,931 @@
+{
+  "version": 1,
+  "activeProfileId": 0,
+  "profiles": [
+    {
+      "id": 0,
+      "name": "AI Assistants",
+      "layers": [
+        {
+          "id": 0,
+          "name": "Codex",
+          "color": 3906815,
+          "layout": {
+            "keymap": [
+              [
+                "KA_A0",
+                "KC_ESC"
+              ],
+              [
+                "KA_A1",
+                "KC_BSPC",
+                "KA_A4",
+                "KA_A3"
+              ],
+              [
+                "KA_A6",
+                "KA_A7",
+                "KA_A9",
+                "KA_A5"
+              ],
+              [
+                "KA_A8",
+                "KC_NONE",
+                "KC_ENT"
+              ]
+            ],
+            "encoders": [
+              [
+                "KC_UP",
+                "KC_DOWN",
+                "KA_A2"
+              ]
+            ],
+            "joystick": {
+              "type": "RADIAL",
+              "sectors": [
+                {
+                  "k": "KC_DOWN",
+                  "a1": 0.1875,
+                  "a2": 0.3125
+                },
+                {
+                  "k": "KA_A11",
+                  "a1": 0.3125,
+                  "a2": 0.4375
+                },
+                {
+                  "k": "KC_LEFT",
+                  "a1": 0.4375,
+                  "a2": 0.5625
+                },
+                {
+                  "k": "KA_A13",
+                  "a1": 0.5625,
+                  "a2": 0.6875
+                },
+                {
+                  "k": "KC_UP",
+                  "a1": 0.6875,
+                  "a2": 0.8125
+                },
+                {
+                  "k": "KC_TAB",
+                  "a1": 0.8125,
+                  "a2": 0.9375
+                },
+                {
+                  "k": "KC_RGHT",
+                  "a1": 0.9375,
+                  "a2": 0.0625
+                },
+                {
+                  "k": "KA_A12",
+                  "a1": 0.0625,
+                  "a2": 0.1875
+                }
+              ]
+            }
+          },
+          "lights": {
+            "backlight": {
+              "effect": "solid",
+              "brightness": 1,
+              "speed": 0.5,
+              "magic": 1,
+              "color": 3906815
+            },
+            "underglow": {
+              "effect": "solid",
+              "brightness": 1,
+              "speed": 0.55,
+              "magic": 1,
+              "color": 3906815
+            }
+          },
+          "linkedAppId": 1
+        },
+        {
+          "id": 1,
+          "name": "ChatGPT",
+          "color": 3257227,
+          "layout": {
+            "keymap": [
+              [
+                "KA_A0",
+                "KC_ESC"
+              ],
+              [
+                "KA_A1",
+                "KC_BSPC",
+                "KA_A4",
+                "KA_A3"
+              ],
+              [
+                "KA_A6",
+                "KA_A7",
+                "KA_A9",
+                "KA_A5"
+              ],
+              [
+                "KA_A8",
+                "KC_NONE",
+                "KC_ENT"
+              ]
+            ],
+            "encoders": [
+              [
+                "KC_UP",
+                "KC_DOWN",
+                "KA_A2"
+              ]
+            ],
+            "joystick": {
+              "type": "RADIAL",
+              "sectors": [
+                {
+                  "k": "KC_DOWN",
+                  "a1": 0.1875,
+                  "a2": 0.3125
+                },
+                {
+                  "k": "KA_A11",
+                  "a1": 0.3125,
+                  "a2": 0.4375
+                },
+                {
+                  "k": "KC_LEFT",
+                  "a1": 0.4375,
+                  "a2": 0.5625
+                },
+                {
+                  "k": "KA_A13",
+                  "a1": 0.5625,
+                  "a2": 0.6875
+                },
+                {
+                  "k": "KC_UP",
+                  "a1": 0.6875,
+                  "a2": 0.8125
+                },
+                {
+                  "k": "KC_TAB",
+                  "a1": 0.8125,
+                  "a2": 0.9375
+                },
+                {
+                  "k": "KC_RGHT",
+                  "a1": 0.9375,
+                  "a2": 0.0625
+                },
+                {
+                  "k": "KA_A12",
+                  "a1": 0.0625,
+                  "a2": 0.1875
+                }
+              ]
+            }
+          },
+          "lights": {
+            "backlight": {
+              "effect": "solid",
+              "brightness": 1,
+              "speed": 0.5,
+              "magic": 1,
+              "color": 3257227
+            },
+            "underglow": {
+              "effect": "solid",
+              "brightness": 1,
+              "speed": 0.55,
+              "magic": 1,
+              "color": 3257227
+            }
+          },
+          "linkedAppId": 4
+        },
+        {
+          "id": 2,
+          "name": "Claude Code",
+          "color": 14256469,
+          "layout": {
+            "keymap": [
+              [
+                "KA_A0",
+                "KC_ESC"
+              ],
+              [
+                "KA_A1",
+                "KC_BSPC",
+                "KA_A4",
+                "KA_A3"
+              ],
+              [
+                "KA_A6",
+                "KA_A7",
+                "KA_A9",
+                "KA_A5"
+              ],
+              [
+                "KA_A8",
+                "KC_NONE",
+                "KC_ENT"
+              ]
+            ],
+            "encoders": [
+              [
+                "KC_UP",
+                "KC_DOWN",
+                "KA_A2"
+              ]
+            ],
+            "joystick": {
+              "type": "RADIAL",
+              "sectors": [
+                {
+                  "k": "KC_DOWN",
+                  "a1": 0.1875,
+                  "a2": 0.3125
+                },
+                {
+                  "k": "KA_A11",
+                  "a1": 0.3125,
+                  "a2": 0.4375
+                },
+                {
+                  "k": "KC_LEFT",
+                  "a1": 0.4375,
+                  "a2": 0.5625
+                },
+                {
+                  "k": "KA_A13",
+                  "a1": 0.5625,
+                  "a2": 0.6875
+                },
+                {
+                  "k": "KC_UP",
+                  "a1": 0.6875,
+                  "a2": 0.8125
+                },
+                {
+                  "k": "KC_TAB",
+                  "a1": 0.8125,
+                  "a2": 0.9375
+                },
+                {
+                  "k": "KC_RGHT",
+                  "a1": 0.9375,
+                  "a2": 0.0625
+                },
+                {
+                  "k": "KA_A12",
+                  "a1": 0.0625,
+                  "a2": 0.1875
+                }
+              ]
+            }
+          },
+          "lights": {
+            "backlight": {
+              "effect": "solid",
+              "brightness": 1,
+              "speed": 0.5,
+              "magic": 1,
+              "color": 14256469
+            },
+            "underglow": {
+              "effect": "solid",
+              "brightness": 1,
+              "speed": 0.55,
+              "magic": 1,
+              "color": 14256469
+            }
+          },
+          "linkedAppId": 2
+        },
+        {
+          "id": 3,
+          "name": "Claude",
+          "color": 12941392,
+          "layout": {
+            "keymap": [
+              [
+                "KA_A0",
+                "KC_ESC"
+              ],
+              [
+                "KA_A1",
+                "KC_BSPC",
+                "KA_A4",
+                "KA_A3"
+              ],
+              [
+                "KA_A6",
+                "KA_A7",
+                "KA_A9",
+                "KA_A5"
+              ],
+              [
+                "KA_A8",
+                "KC_NONE",
+                "KC_ENT"
+              ]
+            ],
+            "encoders": [
+              [
+                "KC_UP",
+                "KC_DOWN",
+                "KA_A2"
+              ]
+            ],
+            "joystick": {
+              "type": "RADIAL",
+              "sectors": [
+                {
+                  "k": "KC_DOWN",
+                  "a1": 0.1875,
+                  "a2": 0.3125
+                },
+                {
+                  "k": "KA_A11",
+                  "a1": 0.3125,
+                  "a2": 0.4375
+                },
+                {
+                  "k": "KC_LEFT",
+                  "a1": 0.4375,
+                  "a2": 0.5625
+                },
+                {
+                  "k": "KA_A13",
+                  "a1": 0.5625,
+                  "a2": 0.6875
+                },
+                {
+                  "k": "KC_UP",
+                  "a1": 0.6875,
+                  "a2": 0.8125
+                },
+                {
+                  "k": "KC_TAB",
+                  "a1": 0.8125,
+                  "a2": 0.9375
+                },
+                {
+                  "k": "KC_RGHT",
+                  "a1": 0.9375,
+                  "a2": 0.0625
+                },
+                {
+                  "k": "KA_A12",
+                  "a1": 0.0625,
+                  "a2": 0.1875
+                }
+              ]
+            }
+          },
+          "lights": {
+            "backlight": {
+              "effect": "solid",
+              "brightness": 1,
+              "speed": 0.5,
+              "magic": 1,
+              "color": 12941392
+            },
+            "underglow": {
+              "effect": "solid",
+              "brightness": 1,
+              "speed": 0.55,
+              "magic": 1,
+              "color": 12941392
+            }
+          },
+          "linkedAppId": 3
+        }
+      ],
+      "macrosUsed": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        11,
+        12,
+        13
+      ],
+      "multiActionsUsed": []
+    }
+  ],
+  "multiActions": [],
+  "macros": [
+    {
+      "id": 0,
+      "name": "New Chat",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LGUI",
+          "delay": 0,
+          "act": 1
+        },
+        {
+          "kc": "KC_N",
+          "delay": 0,
+          "act": 2
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 0,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Context @",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LSFT",
+          "delay": 0,
+          "act": 1
+        },
+        {
+          "kc": "KC_2",
+          "delay": 0,
+          "act": 2
+        },
+        {
+          "kc": "KC_LSFT",
+          "delay": 0,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Search chats",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_LALT",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_F17",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_F17",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LALT",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Choose model",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_LALT",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_F13",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_F13",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LALT",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Undo",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LGUI",
+          "delay": 0,
+          "act": 1
+        },
+        {
+          "kc": "KC_Z",
+          "delay": 0,
+          "act": 2
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 0,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Newline",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LSFT",
+          "delay": 0,
+          "act": 1
+        },
+        {
+          "kc": "KC_ENT",
+          "delay": 0,
+          "act": 2
+        },
+        {
+          "kc": "KC_LSFT",
+          "delay": 0,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Copy response",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_LALT",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_F14",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_F14",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LALT",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Approve once",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_LALT",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_F15",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_F15",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LALT",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Reject request",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_LALT",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_F16",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_F16",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LALT",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "SW Dictation",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_LSFT",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_D",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_D",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LSFT",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LCTL",
+          "delay": 40,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "⌘C",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_C",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_C",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "⌘V",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_V",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_V",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 0
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "⌘A",
+      "color": null,
+      "icon": null,
+      "actions": [
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_A",
+          "delay": 40,
+          "act": 1
+        },
+        {
+          "kc": "KC_A",
+          "delay": 40,
+          "act": 0
+        },
+        {
+          "kc": "KC_LGUI",
+          "delay": 40,
+          "act": 0
+        }
+      ]
+    }
+  ],
+  "macrosGroups": [
+    {
+      "id": 0,
+      "name": "AI Assistants",
+      "color": "#3B9CFF",
+      "actionIds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        11,
+        12,
+        13
+      ]
+    }
+  ],
+  "multiActionsGroups": [],
+  "deviceSpecificConfig": "{\"mergedKey\":{\"lineIndex\":3,\"index\":0,\"direction\":\"right\"}}",
+  "linkedApps": [
+    {
+      "id": 1,
+      "name": "Codex workspace",
+      "process": "cc.worklouder.ai.codex",
+      "path": ""
+    },
+    {
+      "id": 2,
+      "name": "Claude Code workspace",
+      "process": "cc.worklouder.ai.claude-code",
+      "path": ""
+    },
+    {
+      "id": 3,
+      "name": "Claude workspace",
+      "process": "cc.worklouder.ai.claude",
+      "path": ""
+    },
+    {
+      "id": 4,
+      "name": "ChatGPT workspace",
+      "process": "cc.worklouder.ai.chatgpt",
+      "path": ""
+    }
+  ]
+}
