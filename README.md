@@ -6,7 +6,7 @@
 
 Work Louder built a fantastic tactile platform. This project builds on it: a shared set of controls for talking to AI, navigating conversations, approving individual actions and switching between desktop workspaces. It is a configuration and companion-helper project, not replacement firmware or a replacement for Input.
 
-Start with the [Creator Micro 2 from Work Louder](https://worklouder.cc/creator-micro-2). You still need the hardware and Work Louder's Input app. This is an independent enthusiast project, not an official, sponsored or endorsed Work Louder release. Vendor names belong to their respective owners; no vendor logos or firmware are distributed here.
+Start with the [Creator Micro 2 from Work Louder](https://worklouder.cc/creator-micro-2). You still need the hardware and Work Louder's Input app. This is an independent enthusiast project, not an official, sponsored or endorsed Work Louder release. Vendor names belong to their respective owners. This kit does not distribute firmware or Input software.
 
 ## Four layers, one muscle memory
 
@@ -24,6 +24,12 @@ The wide key toggles Superwhisper dictation. The key beside it submits. Other ke
 **Actions follow the foreground app, not the layer.** Changing layers switches the app/view. If you then click into another supported app, Copy response and approval keys act there. They do not drag you back to the layer's app.
 
 See the [interactive side-by-side layout](https://veteranbv.github.io/creator-micro-ai/), [setup guide](docs/setup.md), [gotchas](docs/gotchas.md), and [physical test checklist](docs/verification.md).
+
+### The physical layout
+
+![Creator Micro 2 with the installed pencil, hand, chain, back arrow, undo, model, copy, Y and X caps, a clear newline key, a wide clear dictation bar and a submit arrow](docs/assets/creator-micro-device.png)
+
+USB cable at the top. The interactive reference pairs these exact key positions with their actions. The wide clear bar is dictation; the clear key above Submit is newline.
 
 ## Status
 

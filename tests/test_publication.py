@@ -42,6 +42,10 @@ class PublicationTests(unittest.TestCase):
         self.assertFalse(content_findings("README.md", b"https://worklouder.cc/creator-micro-2"))
         self.assertFalse(content_findings("README.md", b"https://veteranbv.github.io/creator-micro-ai/"))
 
+    def test_documentation_images_require_clean_metadata(self):
+        self.assertIn("artwork metadata requires sanitization",
+                      content_findings("docs/assets/device.png", b"invalid PNG fixture"))
+
     def test_synthetic_email_is_allowed_in_test_content(self):
         self.assertFalse(content_findings("tests/example.py", b"person@example.test"))
 
