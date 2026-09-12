@@ -49,11 +49,14 @@ def metadata_clean(data):
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("files", nargs="*", type=pathlib.Path)
+    args = parser.parse_args()
     assets = pathlib.Path(__file__).resolve().parents[1] / "assets"
-    for name in ("icon.png", "social-card.png"):
-        file = assets / name
+    for file in args.files or [assets / "icon.png", assets / "social-card.png"]:
         before = file.read_bytes()
         after = sanitized(before)
         assert [raw for kind, raw in chunks(before) if kind in RENDER_CHUNKS] == [raw for _, raw in chunks(after)]
         file.write_bytes(after)
-        print(f"Validated artwork metadata: {name}")
+        print(f"Validated artwork metadata: {file.name}")

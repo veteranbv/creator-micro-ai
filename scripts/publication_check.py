@@ -37,6 +37,8 @@ SOURCE_REFERENCES = {
     "pair.group", "twoButtonTree.group", "actions.map", "l.name", "m.id",
     "p.macros.map", "sectors.map", "events.map", "user.email", "user.name",
     "next.map", "controls.chat", "temporary.name", "0.radio", "self.radio",
+    "file.name", "action.properties", "cap.events.click", "cap.properties",
+    "ids.caps.children.map", "item.events", "item.properties", "item.style", "layer.events.click",
 }
 SOURCE_EXTENSIONS = {".py", ".js", ".swift", ".yml", ".yaml"}
 EMAIL = re.compile(rb"[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
@@ -44,7 +46,7 @@ EMAIL = re.compile(rb"[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
 
 def content_findings(name, data):
     issues = privacy_findings(pathlib.Path(name), data)
-    if name.startswith("assets/") and name.endswith(".png") and not metadata_clean(data):
+    if name.endswith(".png") and not metadata_clean(data):
         issues.append("artwork metadata requires sanitization")
     try:
         data.decode("utf-8")

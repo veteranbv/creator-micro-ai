@@ -4,4 +4,6 @@ Work Louder makes the Creator Micro 2 hardware and Input software. This independ
 
 Work Louder, Creator Micro, Input, OpenAI, ChatGPT, Codex, Anthropic, Claude, Superwhisper, Apple and macOS are names used to identify compatibility. Their owners do not sponsor or endorse this project. This repository's MIT license does not grant rights to their trademarks, software, firmware or keycap artwork.
 
-The app icon and social preview are AI-generated project artwork, created without manufacturer marks or keycap artwork as references. They are not manufacturer logos or product photographs. The layout reference uses generic symbols and a functional grid, not copied keycap illustrations.
+The app icon and social preview are AI-generated project artwork, created without manufacturer marks or keycap artwork as references. They are not manufacturer logos or product photographs.
+
+The device photograph was supplied for this project's layout reference. It shows the actual hardware, keycaps and manufacturer markings, not project branding. The interactive layout uses this photograph with matching action labels. Camera and location metadata are removed from the published image.
