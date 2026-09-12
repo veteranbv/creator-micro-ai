@@ -12,6 +12,16 @@ test('the shareable illustration matches the interactive controls and symbols',(
  execFileSync(process.execPath,[path.join(root,'scripts/layout-preview.js'),'--check']);
 });
 
+test('the preview check rejects a control-title change with stale wrapped text',()=>{
+ const changed=html.replace("'New chat'","'New session'");
+ assert.notEqual(changed,html);
+ const isolatedRequire=name=>name==='node:fs'?{...fs,readFileSync:(file,...args)=>
+  file===path.join(root,'docs/layout.html')?changed:fs.readFileSync(file,...args)}:require(name);
+ const script=fs.readFileSync(path.join(root,'scripts/layout-preview.js'),'utf8');
+ assert.throws(()=>vm.runInNewContext(script,{require:isolatedRequire,__dirname:path.join(root,'scripts'),
+  process:{argv:['node','layout-preview.js','--check']},console}),/Preview label does not match/);
+});
+
 function layout(){
  function element(){
   const item={dataset:{},attributes:{},properties:{},children:[],events:{},selected:false};
@@ -59,6 +69,14 @@ test('layer changes preserve the illustrated controls and matching actions',()=>
   assert.equal(layers.filter(button=>button.attributes['aria-pressed']==='true').length,1);
   assert.deepEqual(ids.caps.children.map(button=>({...button.properties})),before);
  });
+});
+
+test('the clear action key shows symbols with an accessible shortcut name',()=>{
+ const {ids}=layout();
+ const button=ids.actions.children.find(item=>item.dataset.action==='newline');
+ assert.equal(button.textContent,'⇧ ↵');
+ assert.equal(button.attributes['aria-label'],'Shift+Return');
+ assert.equal(button.title,'Shift+Return');
 });
 
 test('the actual device photo is a separate reference, not a tappable board',()=>{

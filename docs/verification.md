@@ -10,13 +10,13 @@ These tests do not launch the helper, post keyboard events, read clipboard data,
 
 Complete this checklist on the source build you intend to use. Do not mark a row complete from unit tests or results from a different build.
 
-Record macOS, Input, firmware, ChatGPT and Claude versions; keyboard layout; helper commit; and test date. Use synthetic text only.
+Record macOS, Input, firmware, ChatGPT, Claude and dictation-tool versions; dictation mode and shortcut; keyboard layout; helper commit; and test date. Use synthetic text only. Repeat the dictation checks when changing tools, even if the shortcut stays the same.
 
 | Test | 1 Codex | 2 ChatGPT | 3 Claude Code | 4 Claude Chat |
 | --- | --- | --- | --- | --- |
 | Layer selects correct foreground view | Pending | Pending | Pending | Pending |
 | Three dictation attempts, one insertion each | Pending | Pending | Pending | Pending |
-| New chat, Escape, @, Backspace, Undo, Newline / Enter, Submit | Pending | Pending | Pending | Pending |
+| New chat, Escape, @, Backspace, Undo, Shift+Return (⇧ ↵), Submit | Pending | Pending | Pending | Pending |
 | Search and model picker | Pending | Pending | Pending | Pending |
 | Copy latest assistant response, not user/code block | Pending | Pending | Pending | Pending |
 | Y allows once, X denies a harmless permission request | Pending | Pending | Pending | Pending |

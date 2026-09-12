@@ -10,9 +10,11 @@ The current target apps must be installed at `/Applications/ChatGPT.app` and `/A
 
 ## Configure the applications
 
-1. Set Superwhisper dictation to Control+Shift+D.
+1. Set your preferred dictation tool's global start/stop shortcut to Control+Shift+D. Use toggle mode: one tap starts recording and another stops it. Enable insertion into the focused app, then verify that the shortcut works from both desktop apps. This shortcut is the kit's convention, not a universal standard.
 2. Verify ChatGPT's default shortcuts in its settings: Control+1 for Chat, Control+3 for Codex, Control+Shift+M for model picker. Remove conflicting custom overrides only after checking what they do. Restart the app if its shortcuts remain stale.
 3. Confirm that both desktop apps expose Search and the model picker. The helper uses the apps' controls rather than a universal chat-search keyboard shortcut.
+
+Superwhisper is the maintainer's choice and the dictation tool used in testing, not a required dependency. Test alternatives across all four workspaces before relying on them. A tool that only supports hold-to-talk, opens its own editor, or requires manual pasting needs additional configuration and is not a drop-in replacement for this profile.
 
 ## Load the device profile
 

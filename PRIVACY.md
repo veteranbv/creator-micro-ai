@@ -17,7 +17,7 @@ No typed-text recording, clipboard reads, audio capture, screenshots, conversati
 
 The normal helper runtime does not create user-data files. Explicit device configuration writes a recovery copy under your user Library's `Application Support/Creator Micro AI/backups`, in a private directory. A backup may contain your prior custom macros or paths. Never commit or upload it. It is retained until you deliberately remove it.
 
-The helper loads Work Louder's device kit from your Input installation. We do not redistribute or claim to audit the entire vendor app. macOS itself may retain crash and security diagnostics. Superwhisper, Input, ChatGPT and Claude have separate data handling and network behavior.
+The helper loads Work Louder's device kit from your Input installation. We do not redistribute or claim to audit the entire vendor app. macOS itself may retain crash and security diagnostics. Your chosen dictation tool, Input, ChatGPT and Claude have separate data handling and network behavior. Choosing a different dictation tool does not change what this helper collects, but can change where your audio and transcript are processed.
 
 ## Reporting a bug
 

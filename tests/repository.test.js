@@ -40,3 +40,12 @@ test('user documentation names only the supported Control shortcuts',()=>{
    assert.ok(supported.has(shortcut),`${file}: shortcut needs an implemented control`);
  }
 });
+
+test('dictation documentation describes a tool-independent toggle contract',()=>{
+ assert.match(read('README.md'),/not a universal standard/);
+ assert.match(read('README.md'),/Superwhisper is my choice/);
+ assert.match(read('docs/setup.md'),/preferred dictation tool's global start\/stop shortcut/);
+ assert.match(read('docs/setup.md'),/not a required dependency/);
+ assert.match(read('docs/layout.html'),/configure your dictation tool/i);
+ assert.doesNotMatch(read('README.md'),/wide key toggles Superwhisper/);
+});
