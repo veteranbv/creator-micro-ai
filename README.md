@@ -27,6 +27,10 @@ See the [interactive side-by-side layout](https://veteranbv.github.io/creator-mi
 
 ### The physical layout
 
+![Illustrated Creator Micro keycaps beside their matching actions](docs/assets/layout-reference.svg)
+
+The real device, shown separately for reference:
+
 ![Creator Micro 2 with the installed pencil, hand, chain, back arrow, undo, model, copy, Y and X caps, a clear newline key, a wide clear dictation bar and a submit arrow](docs/assets/creator-micro-device.png)
 
 USB cable at the top. The interactive reference pairs these exact key positions with their actions. The wide clear bar is dictation; the clear key above Submit is newline.

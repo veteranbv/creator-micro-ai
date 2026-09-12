@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <symbol id="dial" viewBox="0 0 48 48"><circle cx="24" cy="24" r="19" fill="#272c30" stroke="#717b80"/><path d="M10 12 37 31" stroke="#899397" stroke-width="7" stroke-linecap="round"/></symbol>
+    <symbol id="new" viewBox="0 0 48 48"><path d="m12 35 3-10L32 8q2-2 4 0l4 4q2 2 0 4L23 33Z M29 11l8 8 M15 25l8 8 M12 35l7-2" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round"/></symbol>
+    <symbol id="escape" viewBox="0 0 48 48"><g transform="rotate(28 24 24)"><path d="M13 26V13q0-4 4-4t4 4V8q0-4 4-4t4 4v4q0-4 4-4t4 4v6q0-4 4-4t4 4v12q0 14-14 14h-5q-6 0-10-6L6 26q-2-3 1-5t6 5Z M21 13v10 M29 12v11 M37 18v7" transform="translate(-2 0) scale(.94)" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></g></symbol>
+    <symbol id="joystick" viewBox="0 0 48 48"><circle cx="24" cy="24" r="18" fill="#333b40" stroke="#8d979e" stroke-width="2"/><path d="M24 10v7 M38 24h-7 M24 38v-7 M10 24h7" stroke="#b5bec1" stroke-width="2.5" stroke-linecap="round"/></symbol>
+    <symbol id="context" viewBox="0 0 48 48"><g transform="rotate(-45 24 24)" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><path d="M19 16h-5a8 8 0 0 0 0 16h5 M29 16h5a8 8 0 0 1 0 16h-5 M16 24h16"/></g></symbol>
+    <symbol id="backspace" viewBox="0 0 48 48"><path d="M39 24H10l12-12 M10 24l12 12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="undo" viewBox="0 0 48 48"><path d="M11 22a14 14 0 0 1 26-5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M39 23a14 14 0 0 1-14 15" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="2 6" stroke-linecap="round"/><path d="m6 17 5 11 9-8Z" fill="currentColor"/></symbol>
+    <symbol id="model" viewBox="0 0 48 48"><g transform="rotate(-45 24 24)" stroke="currentColor" stroke-width="3"><circle cx="32" cy="24" r="10" fill="none"/><circle cx="24" cy="24" r="10" fill="#303637"/><circle cx="15" cy="24" r="10" fill="currentColor"/></g></symbol>
+    <symbol id="copy" viewBox="0 0 48 48"><rect x="21" y="8" width="21" height="22" rx="1" fill="currentColor"/><rect x="8" y="22" width="22" height="22" rx="1" fill="#303637" stroke="currentColor" stroke-width="4"/></symbol>
+    <symbol id="approve" viewBox="0 0 48 48"><path d="m12 9 12 15L36 9 M24 24v16" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></symbol>
+    <symbol id="deny" viewBox="0 0 48 48"><path d="m13 10 22 28 M35 10 13 38" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></symbol>
+    <symbol id="layer" viewBox="0 0 48 48"><path d="M8 12h32 M8 24h32 M8 36h32" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></symbol>
+    <symbol id="submit" viewBox="0 0 48 48"><path d="M7 20 39 8q3-1 2 2L29 42q-1 2-3-1l-6-13-13-5q-3-2 0-3Z" fill="currentColor"/></symbol>
+  </defs>
+</svg>

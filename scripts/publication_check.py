@@ -12,7 +12,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 ALLOWED_DOMAINS = {
     "github.com", "docs.github.com", "cli.github.com", "veteranbv.github.io",
     "worklouder.cc", "www.apple.com", "example.test", "users.noreply.github.com",
-    "data.iana.org",
+    "data.iana.org", "www.w3.org",
 }
 DOMAIN = re.compile(rb"(?<![\w.-])(?:[a-zA-Z0-9-]+\.)+(?:[a-zA-Z]{2,63}|xn--[a-zA-Z0-9-]+)(?![\w.-])")
 PUBLIC_TLDS = {

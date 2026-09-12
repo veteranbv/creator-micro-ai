@@ -6,4 +6,4 @@ Work Louder, Creator Micro, Input, OpenAI, ChatGPT, Codex, Anthropic, Claude, Su
 
 The app icon and social preview are AI-generated project artwork, created without manufacturer marks or keycap artwork as references. They are not manufacturer logos or product photographs.
 
-The device photograph was supplied for this project's layout reference. It shows the actual hardware, keycaps and manufacturer markings, not project branding. The interactive layout uses this photograph with matching action labels. Camera and location metadata are removed from the published image.
+The device photograph was supplied for this project's layout reference. It shows the actual hardware, keycaps and manufacturer markings, not project branding. The interactive diagrams illustrate the matching keycap symbols and actions; the photograph is a separate reference. Camera and location metadata are removed from the published image.

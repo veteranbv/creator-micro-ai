@@ -4,8 +4,13 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
+const {execFileSync}=require('node:child_process');
 const root=path.join(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'docs/layout.html'),'utf8');
+
+test('the shareable illustration matches the interactive controls and symbols',()=>{
+ execFileSync(process.execPath,[path.join(root,'scripts/layout-preview.js'),'--check']);
+});
 
 function layout(){
  function element(){
@@ -25,17 +30,17 @@ function layout(){
  return {ids,layers};
 }
 
-test('the photo and action view share all fifteen bounded positions',()=>{
+test('the illustrated caps and action view share all fifteen grid positions',()=>{
  const {ids}=layout();
  assert.equal(ids.caps.children.length,15);
  assert.equal(ids.actions.children.length,15);
  for(let index=0;index<15;index++){
   const cap=ids.caps.children[index],action=ids.actions.children[index];
   assert.equal(cap.dataset.action,action.dataset.action);
-  assert.deepEqual(cap.properties,action.properties);
+  assert.equal(cap.className,action.className);
   assert.equal(cap.textContent,'');
-  const [x,y,w,h]=['--x','--y','--w','--h'].map(key=>parseFloat(cap.properties[key]));
-  assert.ok(x>=0&&y>=0&&w>0&&h>0&&x+w<=100&&y+h<=100);
+  if(['newline','dictate'].includes(cap.dataset.action))assert.equal(cap.innerHTML,undefined);
+  else assert.ok(cap.innerHTML.includes(`assets/keycaps.svg#${cap.dataset.action}`));
   cap.events.click();
   assert.ok(cap.selected&&action.selected);
   assert.equal(ids.actions.children.filter(button=>button.selected).length,1);
@@ -45,7 +50,7 @@ test('the photo and action view share all fifteen bounded positions',()=>{
  }
 });
 
-test('layer changes preserve the photographed controls and matching actions',()=>{
+test('layer changes preserve the illustrated controls and matching actions',()=>{
  const {ids,layers}=layout();
  const before=ids.caps.children.map(button=>({...button.properties}));
  layers.forEach((layer,index)=>{
@@ -56,11 +61,13 @@ test('layer changes preserve the photographed controls and matching actions',()=
  });
 });
 
-test('the actual device photo is local, correctly sized and linked from the README',()=>{
+test('the actual device photo is a separate reference, not a tappable board',()=>{
  const image=fs.readFileSync(path.join(root,'docs/assets/creator-micro-device.png'));
  assert.equal(image.readUInt32BE(16),1127);
  assert.equal(image.readUInt32BE(20),1280);
  assert.match(html,/src="assets\/creator-micro-device.png" width="1127" height="1280"/);
+ assert.match(html,/<figure class="reference-photo"><img/);
+ assert.doesNotMatch(html,/device-photo|const positions=/);
  assert.match(fs.readFileSync(path.join(root,'README.md'),'utf8'),/\]\(docs\/assets\/creator-micro-device.png\)/);
  assert.doesNotMatch(html,/generic stand-ins|chain cap<|No vendor logo or keycap artwork is reproduced/);
 });
