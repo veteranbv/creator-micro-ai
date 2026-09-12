@@ -16,7 +16,7 @@ Record macOS, Input, firmware, ChatGPT and Claude versions; keyboard layout; hel
 | --- | --- | --- | --- | --- |
 | Layer selects correct foreground view | Pending | Pending | Pending | Pending |
 | Three dictation attempts, one insertion each | Pending | Pending | Pending | Pending |
-| New chat, Escape, @, Backspace, Undo, newline, Submit | Pending | Pending | Pending | Pending |
+| New chat, Escape, @, Backspace, Undo, Newline / Enter, Submit | Pending | Pending | Pending | Pending |
 | Search and model picker | Pending | Pending | Pending | Pending |
 | Copy latest assistant response, not user/code block | Pending | Pending | Pending | Pending |
 | Y allows once, X denies a harmless permission request | Pending | Pending | Pending | Pending |

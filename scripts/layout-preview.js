@@ -8,7 +8,7 @@ const page=fs.readFileSync(path.join(root,'docs/layout.html'),'utf8');
 const definition=page.match(/const controls=(\[[\s\S]*?\n\]);/)[1];
 const controls=vm.runInNewContext(definition);
 const symbols=fs.readFileSync(path.join(root,'docs/assets/keycaps.svg'),'utf8').match(/<defs>([\s\S]*?)<\/defs>/)[1];
-const wrap={dial:['Navigate','/ Search'],new:['New chat'],escape:['Escape'],joystick:['8-way','joystick'],context:['Context @'],backspace:['Backspace'],undo:['Undo'],model:['Choose','model'],copy:['Copy','response'],approve:['Allow once'],deny:['Deny'],newline:['Newline'],layer:['Layers'],dictate:['Dictate'],submit:['Submit']};
+const wrap={dial:['Navigate','/ Search'],new:['New chat'],escape:['Escape'],joystick:['8-way','joystick'],context:['Context @'],backspace:['Backspace'],undo:['Undo'],model:['Choose','model'],copy:['Copy','response'],approve:['Allow once'],deny:['Deny'],newline:['Newline','/ Enter'],layer:['Layers'],dictate:['Dictate'],submit:['Submit']};
 let drawing='';
 for(const [board,offset] of [['caps',26],['actions',522]]){
  drawing+=`<rect x="${offset}" y="100" width="452" height="464" rx="35" fill="#090d11"/><rect x="${offset+10}" y="110" width="432" height="444" rx="27" fill="url(#deck)" stroke="#88caff" stroke-width="3"/>`;
