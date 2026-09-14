@@ -15,7 +15,8 @@ The publication scanner treats ambiguous no-space text as a possible address,
 even inside source files. It does not infer comments from line position or skip
 multiline strings. Its URL check also decodes escaped slashes, escaped dots and
 ASCII hex escapes in serialized text or regex literals. Decoded backslashes
-count as URL separators, and nested URLs are checked independently. A passing
+count as URL separators, and nested URLs are checked independently. HTTP, HTTPS,
+FTP, WS and WSS addresses are checked even without the usual two slashes. A passing
 scan is not proof that all private data or arbitrary encodings have been detected;
 review the content before publication.
 
