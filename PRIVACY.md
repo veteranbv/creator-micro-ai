@@ -9,6 +9,12 @@
 
 It sends balanced app-switch shortcuts and presses matching accessibility controls. Copy response asks the app to copy; the helper never reads the resulting clipboard. The joystick's ordinary copy/paste/select-all shortcuts come from the device itself.
 
+## macOS permissions
+
+Accessibility allows the helper to inspect and control supported apps. The tested Input-based USB bridge also requires Input Monitoring for the helper app. macOS can attribute a child process's access request to its parent app, so Input's own permission entry does not replace Creator Micro AI's entry.
+
+Input Monitoring grants broad access to keyboard input, not a device-only permission. The kit uses the bridge to query device state, not to record typing. Granting this permission does not limit the vendor library to this project's intended use; the third-party boundary below still applies.
+
 ## What this code does not collect
 
 No typed-text recording, clipboard reads, audio capture, screenshots, conversation exports, URL history, telemetry or action-history logs. There is no runtime log switch. The helper does not listen on TCP or open an HTTP endpoint. Its child process receives only a small environment allowlist and communicates through inherited pipes. Vendor exceptions are replaced with fixed protocol failures, never forwarded verbatim.

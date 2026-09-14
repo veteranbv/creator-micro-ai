@@ -17,7 +17,9 @@ enum WorkspaceSelection {
             // Do not inspect the conversation or composer when finding navigation.
             if names.contains("Primary pane") { continue }
             let next = children(node)
-            guard next.isEmpty || depth < 10, queue.count + next.count <= 100 else { return nil }
+            // Native accessibility wrappers can put the sidebar beyond ten levels.
+            // Keep the total node budget and pane pruning independent of that depth.
+            guard next.isEmpty || depth < 32, queue.count + next.count <= 100 else { return nil }
             queue.append(contentsOf: next.map { ($0, depth + 1) })
         }
         guard sidebars.count == 1 else { return nil }

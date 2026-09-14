@@ -18,4 +18,4 @@ subprocess.run(["codesign", "--verify", "--deep", "--strict", str(source)], chec
 destination.parent.mkdir(parents=True, exist_ok=True)
 shutil.copytree(source, destination)
 print(f"Installed: {destination}")
-print("Not launched. Open this app yourself and grant Accessibility to the installed copy. See docs/setup.md.")
+print("Not launched. Open this app and grant Accessibility and Input Monitoring to the installed copy. See docs/setup.md.")

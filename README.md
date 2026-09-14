@@ -43,7 +43,7 @@ Superwhisper is my choice for this setup and the tool used in dictation testing.
 
 ## Status
 
-This is a pre-release, source-built kit. Automated tests cover the profile, action-selection rules, shortcut construction and privacy checks. Physical acceptance of this source build is still pending. Use the [verification checklist](docs/verification.md) before relying on it for daily use.
+This is a pre-release, source-built kit. Automated tests cover the profile, action-selection rules, shortcut construction and privacy checks. Wired four-layer switching and key operation have passed user-reported checks on the source build recorded in the [verification checklist](docs/verification.md). Detailed failure/recovery checks and Bluetooth verification remain pending.
 
 ## Build and test
 

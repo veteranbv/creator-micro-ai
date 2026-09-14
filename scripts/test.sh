@@ -9,6 +9,12 @@ python3 scripts/privacy_check.py
 python3 scripts/publication_check.py --all-history
 if [[ "$(uname -s)" == Darwin ]]; then
   mkdir -p build/tests build/module-cache
+  swiftc helper/Sources/HelperHealth.swift tests/helper-health.swift \
+    -module-cache-path build/module-cache -o build/tests/helper-health
+  build/tests/helper-health
+  swiftc helper/Sources/BridgePipeReader.swift tests/bridge-pipe.swift \
+    -module-cache-path build/module-cache -o build/tests/bridge-pipe
+  build/tests/bridge-pipe
   swiftc helper/Sources/ControllerActions.swift tests/controller-targets.swift \
     -module-cache-path build/module-cache -framework Carbon -framework AppKit -o build/tests/controller-targets
   build/tests/controller-targets

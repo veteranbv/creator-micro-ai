@@ -31,10 +31,10 @@ FILE_REFERENCES = {
 # exceptions exact and source-only; do not use them to exempt prose or URLs.
 SOURCE_REFERENCES = {
     "f.bot", "match.group", "subprocess.run", "self.data", "m.group", "Date.now",
-    "mode.name", "id.id", "self.press", "JSONSerialization.data", "handle.read",
+    "mode.name", "id.id", "self.press", "JSONSerialization.data", "handle.read", "Darwin.read",
     "item.menu", "quit.target", "task.run", "application.run", "labels.map",
     "source.name", "path.parts", "re.search", "relative.parts", "largeRequest.group",
-    "pair.group", "twoButtonTree.group", "actions.map", "l.name", "m.id",
+    "pair.group", "twoButtonTree.group", "tree.group", "actions.map", "l.name", "m.id",
     "p.macros.map", "sectors.map", "events.map", "user.email", "user.name",
     "next.map", "controls.chat", "temporary.name", "0.radio", "self.radio",
     "file.name", "action.properties", "cap.events.click", "cap.properties",
@@ -117,8 +117,8 @@ def main():
     parser.add_argument("--all-history", action="store_true")
     args = parser.parse_args()
     issues = tag_findings()
-    # Check the index's file list against working files, including staged additions.
-    for name in git("ls-files", "-z").decode().split("\0"):
+    # Include new source files before staging, but leave ignored private files alone.
+    for name in git("ls-files", "--cached", "--others", "--exclude-standard", "-z").decode().split("\0"):
         if not name:
             continue
         file = ROOT / name

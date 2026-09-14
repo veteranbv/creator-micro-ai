@@ -39,6 +39,19 @@ final class Node {
         mode.children = [chat, code, Node("Extra", radio: true)]
         precondition(select(root) == nil)
         precondition(select(Node("", Array(repeating: Node(), count: 101))) == nil)
-        print("PASS: sidebar Mode pair, composer pruning, ambiguity, incomplete controls and traversal budget. No app access.")
+        mode.children = [chat, code]
+        func wrapped(_ node: Node, levels: Int) -> Node {
+            (0..<levels).reduce(node) { result, _ in Node("", [result]) }
+        }
+        // The native window exposes wrappers that a summarized UI tree omits.
+        let nativeWindow = wrapped(root, levels: 12)
+        precondition(select(nativeWindow)?.chat === chat)
+        precondition(select(nativeWindow)?.code === code)
+        precondition(paneReads == 0)
+        precondition(select(wrapped(sidebar, levels: 32))?.code === code)
+        precondition(select(wrapped(sidebar, levels: 33)) == nil)
+        precondition(select(Node("", [sidebar, wrapped(sidebar, levels: 12)])) == nil)
+        precondition(select(wrapped(Node("", Array(repeating: Node(), count: 101)), levels: 12)) == nil)
+        print("PASS: sidebar Mode pair, nested native windows, composer pruning, ambiguity, incomplete controls and traversal budgets. No app access.")
     }
 }

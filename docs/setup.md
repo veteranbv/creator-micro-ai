@@ -41,9 +41,30 @@ python3 scripts/install.py
 
 Installation copies the source-built app into your user Applications directory. It refuses to overwrite an existing installation or proceed while a conflicting helper is running. It does not launch the app or silently grant permissions.
 
-Open the installed Creator Micro AI app, then grant that app Accessibility in System Settings → Privacy & Security → Accessibility. Input Monitoring is not needed by this helper. There is a menu-bar Quit action. To start at login, add the installed app through System Settings → General → Login Items. We do not create a keep-alive daemon that defeats Quit.
+Open the installed Creator Micro AI app and configure these separate permissions in System Settings → Privacy & Security:
 
-Rebuilding an ad-hoc-signed app may invalidate Accessibility trust. If macOS rejects a changed build, remove the stale Accessibility entry and add the installed app again. Do not disable system security features.
+1. In Accessibility, add and enable the installed Creator Micro AI app. The helper uses this permission to control supported apps.
+2. In Input Monitoring, add and enable the same installed app. The Input-based USB bridge requires this permission in the tested setup. macOS attributes the child process's device access to Creator Micro AI.
+3. Quit and reopen Creator Micro AI after changing permissions.
+
+Keep one entry for the installed helper in each permission list, not multiple entries in Accessibility. Input Monitoring grants broad keyboard-input access, even while other apps are active. This helper does not record typing; see [PRIVACY.md](../PRIVACY.md) for its actual behavior and vendor boundary.
+
+The menu-bar icon becomes a warning triangle when the helper needs attention. Open its menu to check device connection, Accessibility, Input Monitoring and workspace-switch status. The helper checks both permissions through macOS without recording input. A bridge failure still lists connection checks because permission is not the only possible cause. “Request sent” means the helper delivered the switch request, not that it independently verified the resulting view. Status stays in memory; it is not an action log.
+
+There is a menu-bar Quit action. To start at login, add the installed app through System Settings → General → Login Items. We do not create a keep-alive daemon that defeats Quit.
+
+Rebuilding an ad-hoc-signed app may invalidate Accessibility or Input Monitoring trust. An enabled switch can still refer to an older build. After replacing the installed build, refresh both entries together:
+
+1. Remove Creator Micro AI from Accessibility and add the installed copy again.
+2. Enable its Accessibility switch.
+3. Remove Creator Micro AI from Input Monitoring and add the same installed copy again.
+4. Enable its Input Monitoring switch.
+5. Quit and reopen Creator Micro AI.
+6. Check that its menu reports both permissions trusted and the device bridge connected.
+
+Do not disable system security features.
+
+Verify the complete physical cycle: 1 → 2 → 3 → 4 → 1. Every transition must select the expected app and view. Device color changes alone do not prove that the bridge is connected. If colors change but no app or view changes, check Input Monitoring as well as Accessibility before rewriting the device profile.
 
 ## Updating
 
