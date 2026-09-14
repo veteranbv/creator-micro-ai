@@ -115,6 +115,12 @@ def content_findings(name, data, *, path_context=False):
         return issues  # Binary metadata is reviewed separately, not treated as prose.
     member_spans, path_spans = python_reference_spans(name, data)
     for match in URL.finditer(data):
+        # At the start of a Swift/JS line, a plain word after the comment
+        # delimiter is prose. Keep scanning the rest of that comment for hosts.
+        if pathlib.Path(name).suffix in {".swift", ".js"} and re.fullmatch(rb"/{2}[A-Za-z_][A-Za-z0-9_-]*:?", match.group()):
+            line_start = data.rfind(b"\n", 0, match.start()) + 1
+            if not data[line_start:match.start()].strip():
+                continue
         # Only visibly generic secret-reference examples belong in public docs.
         if re.fullmatch(rb"op:/{2}YOUR_[A-Z_]+/YOUR_[A-Z_]+/[a-z-]+", match.group()):
             continue

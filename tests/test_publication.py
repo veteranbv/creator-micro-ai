@@ -19,6 +19,17 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_no_space_source_comment_introductions_are_not_hosts(self):
+        for name in ("fixture.swift", "fixture.js"):
+            for comment in (b"/" + b"/TODO: revisit", b"  /" + b"/MARK: Controls", b"/" + b"/explanation of behavior"):
+                with self.subTest(name=name, comment=comment):
+                    self.assertFalse(content_findings(name, comment))
+            for endpoint in (b"//" + b"buildserver/private", b"ssh://" + b"buildserver/private"):
+                self.assertTrue(content_findings(name, b"/" + b"/TODO: inspect " + endpoint))
+                self.assertTrue(content_findings(name, b'let endpoint = "' + endpoint + b'"'))
+            self.assertTrue(content_findings(name, b'let endpoint = "//' + b'buildserver"'))
+        self.assertTrue(content_findings("README.md", b"//" + b"buildserver"))
+
     def test_staged_archive_is_checked_when_worktree_is_clean_or_missing(self):
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w") as bundle:
