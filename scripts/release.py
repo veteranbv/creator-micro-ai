@@ -1,5 +1,6 @@
 """Build and verify a local notarized release without exporting signing keys."""
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -17,15 +18,39 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 BUNDLE_ID = "community.creatormicroai.helper"
 
 
-def run(label, *command, cwd=ROOT, timeout=1200):
+def run(label, *command, cwd=ROOT, timeout=1200, input=None):
     print(label, flush=True)
+    # Build tools need the user's toolchain paths, not the invoking shell's secrets.
+    environment = {key: value for key, value in os.environ.items() if key in {
+        "PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL",
+        "DEVELOPER_DIR", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET",
+    }}
     try:
         result = subprocess.run(command, cwd=cwd, capture_output=True, text=True,
-                                timeout=timeout, check=True)
+                                timeout=timeout, check=True, env=environment,
+                                input=input, start_new_session=input is not None)
     except (subprocess.SubprocessError, OSError) as error:
         # Tool diagnostics can contain account names and keychain paths.
         raise RuntimeError(f"{label} failed. Check the local prerequisites; no release was published.") from error
     return result.stdout
+
+
+@contextlib.contextmanager
+def unlocked_keychain(config, password):
+    """An optional secret-manager password is sent only to security's stdin."""
+    if password is None:
+        yield
+        return
+    # Apple's getpass buffer is limited by _PASSWORD_LEN in pwd.h.
+    if not password or any(character in password for character in "\r\n\0") or len(password.encode()) > 128:
+        raise RuntimeError("Signing password must be nonempty, single-line and at most 128 UTF-8 bytes.")
+    # A detached session makes Apple's getpass read the pipe, never the user's tty.
+    try:
+        run("Unlock dedicated signing keychain", "/usr/bin/security", "unlock-keychain",
+            config["keychain"], input=password + "\n", timeout=30)
+        yield
+    finally:
+        run("Lock dedicated signing keychain", "/usr/bin/security", "lock-keychain", config["keychain"], timeout=30)
 
 
 def settings(path):
@@ -160,7 +185,10 @@ def main():
     try:
         if sys.platform != "darwin" or os.environ.get("GITHUB_ACTIONS") == "true":
             raise RuntimeError("Signing runs locally on macOS, not in GitHub Actions.")
-        release(settings(args.config), args.revision)
+        password = os.environ.pop("CREATOR_SIGNING_PASSWORD", None)
+        config = settings(args.config)
+        with unlocked_keychain(config, password):
+            release(config, args.revision)
     except KeyboardInterrupt:
         print("Release interrupted; no new release was published.", file=sys.stderr)
         return 1

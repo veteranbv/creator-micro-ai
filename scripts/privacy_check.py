@@ -36,7 +36,7 @@ def findings(path, data):
             issues.append("forbidden runtime capture, logging or network API")
         if path.suffix == ".swift" and re.search(r"\b(print|fputs|NSLog)\s*\(", text):
             issues.append("runtime logging is disabled by policy")
-    if any(part.lower() in LOCAL_DIRECTORIES or part.lower().startswith(".env") or "backup" in part.lower() for part in path.parts) or path.name.lower() == ".ds_store" or path.suffix.lower() in {".pyc", ".log", ".har", ".trace", ".pem", ".p12", ".mobileprovision"}:
+    if any(part.lower() in LOCAL_DIRECTORIES or part.lower().startswith(".env") or "backup" in part.lower() for part in path.parts) or path.name.lower() == ".ds_store" or path.suffix.lower() in {".pyc", ".log", ".har", ".trace", ".pem", ".p12", ".pfx", ".p8", ".key", ".keychain", ".keychain-db", ".mobileprovision"}:
         issues.append("private local artifact must not be published")
     return issues
 

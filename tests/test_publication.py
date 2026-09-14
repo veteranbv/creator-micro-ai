@@ -545,7 +545,7 @@ class PublicationTests(unittest.TestCase):
                 self.assertEqual(publication_check.main(), 1)
 
     def test_credential_artifact_names_are_case_insensitive(self):
-        for suffix in ("pem", "p12", "mobileprovision", "log", "har", "trace"):
+        for suffix in ("pem", "p12", "pfx", "p8", "key", "keychain", "keychain-db", "mobileprovision", "log", "har", "trace"):
             for variant in (suffix, suffix.upper(), suffix.title()):
                 self.assertIn("private local artifact must not be published",
                               content_findings("client." + variant, b"\x00\xff"))
