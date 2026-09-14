@@ -18,6 +18,8 @@ The installed bundle was verified identical to the build that passed `bash scrip
 
 This confirms normal operation on the tested setup, not every failure mode. Exact repetition counts, deliberately missing permissions, multiple simultaneous approval cards, rapid focus changes during approval, and the full version inventory were not separately reported. New runtime fixes after this commit require their own acceptance check; later documentation-only commits do not change the tested executable.
 
+The subsequent review candidate also aborts workspace and action selection on unreadable labels, requires complete trees for model/search controls, and binds delayed approvals to the original focused window and control. Injected accessibility fixtures cover label and tree failures. Source assertions verify the delayed approval guards; live same-process window switching during the delay is not yet verified. This candidate is built separately and has not replaced the accepted installation above.
+
 ## Wired verification checkpoint
 
 On 2026-09-13, the tester reported that the installed source build completed the wired 1 → 2 → 3 → 4 → 1 cycle, switching both the foreground app and its selected view. The tester then checked all keys across the wired layers and reported that they worked. These are user-reported physical results, not automated test results.

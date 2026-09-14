@@ -1,6 +1,6 @@
 // Only the sidebar's Mode group identifies Claude's desktop workspace.
 enum WorkspaceSelection {
-    static func controls<Node>(root: Node, labels: (Node) -> [String],
+    static func controls<Node>(root: Node, labels: (Node) -> [String]?,
         children: (Node) -> [Node]?, isRadio: (Node) -> Bool) -> (chat: Node, code: Node)? {
         var queue: [(Node, Int)] = [(root, 0)]
         var cursor = 0
@@ -9,7 +9,7 @@ enum WorkspaceSelection {
             guard cursor < 100 else { return nil }
             let (node, depth) = queue[cursor]
             cursor += 1
-            let names = labels(node)
+            guard let names = labels(node) else { return nil }
             if names.contains("Sidebar") {
                 sidebars.append(node)
                 continue
@@ -24,13 +24,21 @@ enum WorkspaceSelection {
         }
         guard sidebars.count == 1 else { return nil }
         guard let sidebarChildren = children(sidebars[0]), sidebarChildren.count <= 100 else { return nil }
-        let groups = sidebarChildren.filter { labels($0).contains("Mode") }
+        var groups: [Node] = []
+        for child in sidebarChildren {
+            guard let names = labels(child) else { return nil }
+            if names.contains("Mode") { groups.append(child) }
+        }
         guard groups.count == 1 else { return nil }
         guard let radios = children(groups[0]), radios.count == 2, radios.allSatisfy(isRadio) else { return nil }
-        let chat = radios.filter { labels($0).contains("Chat and Cowork") }
-        let code = radios.filter { labels($0).contains("Code") }
-        guard chat.count == 1, code.count == 1,
-              !labels(chat[0]).contains("Code"), !labels(code[0]).contains("Chat and Cowork") else { return nil }
+        var chat: [Node] = [], code: [Node] = []
+        for radio in radios {
+            guard let names = labels(radio) else { return nil }
+            let isChat = names.contains("Chat and Cowork"), isCode = names.contains("Code")
+            guard isChat != isCode else { return nil }
+            if isChat { chat.append(radio) } else { code.append(radio) }
+        }
+        guard chat.count == 1, code.count == 1 else { return nil }
         return (chat[0], code[0])
     }
 }

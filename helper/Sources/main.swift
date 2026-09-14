@@ -53,13 +53,9 @@ private func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
 }
 
 private func stringAttribute(_ element: AXUIElement, _ name: String) -> String? {
-    if let value = attribute(element, name) as? String {
-        return value
-    }
-    if let value = attribute(element, name) as? URL {
-        return value.absoluteString
-    }
-    return nil
+    var raw: CFTypeRef?
+    let status = AXUIElementCopyAttributeValue(element, name as CFString, &raw)
+    return ControllerTargetPolicy.attributeValue(status: status, value: raw as? String, absent: "")
 }
 
 private func workspaceControls(in app: NSRunningApplication) -> (chat: AXUIElement, code: AXUIElement)? {
@@ -102,11 +98,13 @@ private func detectMode() -> WorkspaceMode? {
     }
 }
 
-private func comparableLabels(for element: AXUIElement) -> [String] {
-    [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute, kAXIdentifierAttribute]
-        .compactMap { stringAttribute(element, $0) }
-        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        .filter { !$0.isEmpty }
+private func comparableLabels(for element: AXUIElement) -> [String]? {
+    var labels: [String] = []
+    for key in [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute, kAXIdentifierAttribute] {
+        guard let text = stringAttribute(element, key) else { return nil }
+        labels.append(text.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+    return labels
 }
 
 private func pressWorkspaceButton(in app: NSRunningApplication, mode: WorkspaceMode) -> Bool {
@@ -114,7 +112,7 @@ private func pressWorkspaceButton(in app: NSRunningApplication, mode: WorkspaceM
           NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
           let controls = workspaceControls(in: app) else { return false }
     let target = mode == .claudeCode ? controls.code : controls.chat
-    guard (attribute(target, kAXEnabledAttribute) as? NSNumber)?.boolValue != false else { return false }
+    guard (attribute(target, kAXEnabledAttribute) as? NSNumber)?.boolValue == true else { return false }
     return AXUIElementPerformAction(target, kAXPressAction as CFString) == .success
 }
 

@@ -57,22 +57,33 @@ test('app opening cannot activate before the stale-generation guard',()=>{
  assert.match(source,/guard generation == activationGeneration else \{ return \}\s+app\.activate/);
 });
 
-test('Copy uses complete traversal before selecting or retrying a response',()=>{
+test('every selector uses complete traversal and guards read failures before pressing',()=>{
  const source=read('helper/Sources/ControllerActions.swift');
- assert.match(source,/\(2\.\.\.4\)\.contains\(id\) \? completeDescendants\(window\)/);
- const copyHelpers=source.slice(source.indexOf('private func latestClaudeMessage'),source.indexOf('private func perform'));
- assert.doesNotMatch(copyHelpers,/\bdescendants\(/);
- assert.match(copyHelpers,/guard let nodes = completeDescendants\(window\) else \{ return nil \}/);
+ assert.match(source,/ControllerTargetPolicy\.completeDescendants\(root, limit: limit, children: children\)/);
+ assert.match(source,/guard let all = reads\.descendants\(window\) else/);
+ assert.match(source,/if reads\.complete, let target, press\(target, app: app, window: window\)/);
+ assert.match(source,/else if reads\.complete && attempts > 1/);
+ assert.doesNotMatch(source,/\?\? \[\]/);
 });
 
 test('approval discovery preserves predicate read failures until selection finishes',()=>{
  const source=read('helper/Sources/ControllerActions.swift');
- const approval=source.slice(source.indexOf('case 3, 4:'),source.indexOf('case 5:'));
- assert.doesNotMatch(approval,/self\.value\(|self\.matches\(|\blabels\(|filter\(actionable\)/);
- assert.match(approval,/attributesComplete = false/);
- assert.match(approval,/guard attributesComplete else \{ NSSound\.beep\(\); return \}/);
- assert.ok(approval.indexOf('guard attributesComplete') < approval.indexOf('pairedApproval('));
+ const approval=source.slice(source.indexOf('private func approvalTarget'));
+ assert.match(approval,/guard reads\.complete else \{ return nil \}/);
+ assert.match(approval,/return reads\.complete \? target : nil/);
  const workspace=read('helper/Sources/main.swift').split('private func workspaceControls')[1].split('private func detectMode')[0];
  assert.match(workspace,/ControllerTargetPolicy\.childValues\(status: status, values: raw as\? \[AXUIElement\]\)/);
  assert.doesNotMatch(workspace,/\?\? \[\]/);
+});
+
+test('delayed approval stays bound to the original window and control',()=>{
+ const source=read('helper/Sources/ControllerActions.swift');
+ const receive=source.slice(source.indexOf('private func receive'),source.indexOf('private func value'));
+ assert.ok(receive.indexOf('let window = focusedWindow(app)') < receive.indexOf('DispatchQueue.main.asyncAfter'));
+ assert.ok(receive.indexOf('let originalTarget =') < receive.indexOf('DispatchQueue.main.asyncAfter'));
+ assert.match(receive,/CFEqual\(currentWindow, window\)/);
+ assert.match(receive,/CFEqual\(originalTarget, currentTarget\)/);
+ assert.match(receive,/approval && originalTarget == nil/);
+ const press=source.slice(source.indexOf('private func press'),source.indexOf('private func parent'));
+ assert.ok(press.indexOf('CFEqual(currentWindow, window)') < press.indexOf('AXUIElementPerformAction'));
 });
