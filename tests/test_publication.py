@@ -19,8 +19,11 @@ import privacy_check
 
 class PublicationTests(unittest.TestCase):
     def test_private_directory_paths_are_forbidden_even_for_opaque_files(self):
-        for name in ("private/device-export.bin", "docs/PRIVATE/export.bin", "local/Private/blob.dat"):
+        for name in ("private/device-export.bin", "docs/PRIVATE/export.bin", "local/Private/blob.dat",
+                     "build/export.bin", "BUILD/export.bin", "node_modules/export.bin", "__pycache__/blob.bin",
+                     ".swift-module-cache/export.bin", ".DS_Store", "docs/.ds_store", "cache.pyc", "CACHE.PYC"):
             self.assertIn("private local artifact must not be published", content_findings(name, b"\x00\xff"))
+            self.assertIn("private local artifact must not be published", publication_check.path_findings(name))
 
     def test_force_added_private_binary_fails_index_and_history_checks(self):
         with tempfile.TemporaryDirectory(prefix="publication-private-test-") as directory:
