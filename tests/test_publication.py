@@ -18,6 +18,15 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_signing_branch_source_references_are_not_hosts(self):
+        for name in ("releases.md", "release.py", "source.zip", "submission.zip"):
+            self.assertFalse(content_findings("README.md", name.encode()))
+            self.assertFalse(publication_check.path_findings(name))
+        for expression in ("release.run", "download.name", "self.fail"):
+            self.assertFalse(content_findings("fixture.py", expression.encode()))
+            self.assertTrue(content_findings("README.md", expression.encode()))
+            self.assertTrue(content_findings("fixture.py", ("https://" + expression).encode()))
+
     def test_private_directory_paths_are_forbidden_even_for_opaque_files(self):
         for name in ("private/device-export.bin", "docs/PRIVATE/export.bin", "local/Private/blob.dat",
                      "build/export.bin", "BUILD/export.bin", "node_modules/export.bin", "__pycache__/blob.bin",

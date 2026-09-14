@@ -24,8 +24,9 @@ URL = re.compile(rb"https?://[^\s<>\"']+", re.IGNORECASE)
 # These exact references are files, not hosts. URLs never use this exception.
 FILE_REFERENCES = {
     "README.md", "CONTRIBUTING.md", "PRIVACY.md", "AGENTS.md", "NOTICE.md", "SECURITY.md",
-    "gotchas.md", "repository-admin.md", "setup.md", "verification.md",
+    "gotchas.md", "repository-admin.md", "setup.md", "verification.md", "releases.md",
     "build.sh", "device.sh", "icon.sh", "test.sh", "install.py", "example.py", "fixture.py", "notes.md",
+    "release.py", "source.zip", "submission.zip",
     "ChatGPT.app", "Claude.app", "input.app", "AI.app",
 }
 # DNS suffixes also occur in source-language member expressions. Keep these
@@ -40,6 +41,7 @@ SOURCE_REFERENCES = {
     "next.map", "controls.chat", "temporary.name", "0.radio", "self.radio",
     "file.name", "action.properties", "cap.events.click", "cap.properties", "reads.read",
     "ids.caps.children.map", "item.events", "item.properties", "item.style", "layer.events.click",
+    "release.run", "download.name", "self.fail",
 }
 SOURCE_EXTENSIONS = {".py", ".js", ".swift", ".yml", ".yaml"}
 EMAIL = re.compile(rb"[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
