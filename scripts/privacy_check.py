@@ -1,8 +1,10 @@
 """Fail closed on common accidental disclosures and forbidden runtime capture APIs."""
 import pathlib
+import io
 import re
 import subprocess
 import sys
+import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 LOCAL_DIRECTORIES = {"build", "__pycache__", "node_modules", "private", ".swift-module-cache"}
@@ -22,7 +24,8 @@ RUNTIME_BANNED = [
 
 def findings(path, data):
     issues = []
-    if path.suffix.lower() == ".zip" or data.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")):
+    if (path.suffix.lower() == ".zip" or data.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"))
+            or zipfile.is_zipfile(io.BytesIO(data))):
         issues.append("archive artifact must not be published")
     if any(re.search(pattern, data) for pattern in SECRET_PATTERNS):
         issues.append("possible credential or personal absolute path")

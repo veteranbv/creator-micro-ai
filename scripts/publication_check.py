@@ -1,7 +1,7 @@
 """Check publication content and Git identities without echoing matched values."""
 import argparse
 import ast
-from ast import Name
+from ast import Call, Name
 import hashlib
 import pathlib
 import re
@@ -47,41 +47,56 @@ SOURCE_REFERENCES = {
 }
 SOURCE_EXTENSIONS = {".py", ".js", ".swift", ".yml", ".yaml"}
 PYTHON_MEMBERS = {"release.run", "download.name", "self.fail"}
+PATH_REFERENCES = {"releases.md", "release.py", "source.zip", "submission.zip"}
 EMAIL = re.compile(rb"[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
 
 
-def python_member_spans(name, data):
+def python_reference_spans(name, data):
     if pathlib.Path(name).suffix != ".py":
-        return []
+        return [], []
     try:
         tree = ast.parse(data)
     except (SyntaxError, ValueError):
-        return []
+        return [], []
     offsets = [0]
     for line in data.splitlines(keepends=True):
         offsets.append(offsets[-1] + len(line))
-    spans = []
+    member_spans, path_spans = [], []
     for node in ast.walk(tree):
         candidates = [node] if isinstance(node, ast.Attribute) else []
         # The checker's explicit policy table is data, not a connection endpoint.
         if name == "scripts/publication_check.py" and isinstance(node, ast.Assign) and isinstance(node.value, ast.Set):
-            if any(isinstance(assignment_target, Name) and assignment_target.id in {"SOURCE_REFERENCES", "PYTHON_MEMBERS"} for assignment_target in node.targets):
-                candidates = [value for value in node.value.elts if isinstance(value, ast.Constant) and value.value in PYTHON_MEMBERS]
-        # Older reviewed fixtures iterate this exact synthetic member table.
+            if any(isinstance(assignment_target, Name) and assignment_target.id in {"SOURCE_REFERENCES", "PYTHON_MEMBERS", "FILE_REFERENCES", "PATH_REFERENCES"} for assignment_target in node.targets):
+                candidates = [value for value in node.value.elts if isinstance(value, ast.Constant) and value.value in PYTHON_MEMBERS | PATH_REFERENCES]
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div) and isinstance(node.right, ast.Constant):
+            if node.right.value in PATH_REFERENCES:
+                candidates = [node.right]
+        # Reviewed fixture tables contain synthetic filenames and members.
         # Do not exempt other strings or endpoint arguments in the test file.
         if name == "tests/test_publication.py" and isinstance(node, ast.For) and isinstance(node.iter, ast.Tuple):
+            candidates = [value for value in node.iter.elts if isinstance(value, ast.Constant) and value.value in PATH_REFERENCES]
             if all(isinstance(value, ast.Constant) and isinstance(value.value, str) for value in node.iter.elts):
                 if {value.value for value in node.iter.elts} == PYTHON_MEMBERS:
                     candidates = node.iter.elts
+        # Literal scanner inputs in this fixture file are synthetic test data.
+        if name == "tests/test_publication.py" and isinstance(node, Call):
+            call_target = node.func
+            if isinstance(call_target, Name) and call_target.id == "content_findings" and len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
+                candidates = [node.args[1]]
+            if isinstance(call_target, Name) and call_target.id == "git" and node.args and isinstance(node.args[0], ast.Constant):
+                if node.args[0].value in {"add", "rm"}:
+                    candidates = [value for value in node.args[1:] if isinstance(value, ast.Constant) and value.value in PATH_REFERENCES]
         for candidate in candidates:
             start = offsets[candidate.lineno - 1] + candidate.col_offset
             end = offsets[candidate.end_lineno - 1] + candidate.end_col_offset
-            if isinstance(candidate, ast.Constant) or data[start:end].decode() in PYTHON_MEMBERS:
-                spans.append((start, end))
-    return spans
+            if isinstance(candidate, ast.Constant):
+                (member_spans if candidate.value in PYTHON_MEMBERS else path_spans).append((start, end))
+            elif data[start:end].decode() in PYTHON_MEMBERS:
+                member_spans.append((start, end))
+    return member_spans, path_spans
 
 
-def content_findings(name, data):
+def content_findings(name, data, *, path_context=False):
     issues = privacy_findings(pathlib.Path(name), data)
     if name.lower().endswith(".png") and not metadata_clean(data):
         issues.append("artwork metadata requires sanitization")
@@ -96,7 +111,7 @@ def content_findings(name, data):
         data.decode("utf-8")
     except UnicodeDecodeError:
         return issues  # Binary metadata is reviewed separately, not treated as prose.
-    member_spans = python_member_spans(name, data)
+    member_spans, path_spans = python_reference_spans(name, data)
     for match in URL.finditer(data):
         try:
             host = urlsplit(match.group().decode()).hostname
@@ -108,7 +123,10 @@ def content_findings(name, data):
     for match in DOMAIN.finditer(data):
         token = match.group().decode()
         if token in FILE_REFERENCES:
-            continue
+            if token not in PATH_REFERENCES or path_context or data[match.start() - 1:match.start()] == b"/":
+                continue
+            if any(start <= match.start() and match.end() <= end for start, end in path_spans):
+                continue
         if token in PYTHON_MEMBERS:
             if any(start <= match.start() and match.end() <= end for start, end in member_spans):
                 continue
@@ -141,7 +159,7 @@ def path_findings(name):
             if part.endswith(".test.js") and candidate == part[:-3]:
                 continue
             candidates.append(candidate)
-    return privacy_findings(pathlib.Path(name), b"") + content_findings("repository-path", "\n".join(candidates).encode())
+    return privacy_findings(pathlib.Path(name), b"") + content_findings("repository-path", "\n".join(candidates).encode(), path_context=True)
 
 
 def git(*args):
