@@ -64,3 +64,15 @@ test('Copy uses complete traversal before selecting or retrying a response',()=>
  assert.doesNotMatch(copyHelpers,/\bdescendants\(/);
  assert.match(copyHelpers,/guard let nodes = completeDescendants\(window\) else \{ return nil \}/);
 });
+
+test('approval discovery preserves predicate read failures until selection finishes',()=>{
+ const source=read('helper/Sources/ControllerActions.swift');
+ const approval=source.slice(source.indexOf('case 3, 4:'),source.indexOf('case 5:'));
+ assert.doesNotMatch(approval,/self\.value\(|self\.matches\(|\blabels\(|filter\(actionable\)/);
+ assert.match(approval,/attributesComplete = false/);
+ assert.match(approval,/guard attributesComplete else \{ NSSound\.beep\(\); return \}/);
+ assert.ok(approval.indexOf('guard attributesComplete') < approval.indexOf('pairedApproval('));
+ const workspace=read('helper/Sources/main.swift').split('private func workspaceControls')[1].split('private func detectMode')[0];
+ assert.match(workspace,/ControllerTargetPolicy\.childValues\(status: status, values: raw as\? \[AXUIElement\]\)/);
+ assert.doesNotMatch(workspace,/\?\? \[\]/);
+});

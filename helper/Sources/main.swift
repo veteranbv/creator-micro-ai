@@ -69,7 +69,11 @@ private func workspaceControls(in app: NSRunningApplication) -> (chat: AXUIEleme
           CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
     let window = unsafeBitCast(raw, to: AXUIElement.self)
     return WorkspaceSelection.controls(root: window, labels: comparableLabels,
-        children: { attribute($0, kAXChildrenAttribute) as? [AXUIElement] ?? [] },
+        children: {
+            var raw: CFTypeRef?
+            let status = AXUIElementCopyAttributeValue($0, kAXChildrenAttribute as CFString, &raw)
+            return ControllerTargetPolicy.childValues(status: status, values: raw as? [AXUIElement])
+        },
         isRadio: { stringAttribute($0, kAXRoleAttribute) == "AXRadioButton" })
 }
 
