@@ -94,7 +94,7 @@ def path_findings(name):
             if part.endswith(".test.js") and candidate == part[:-3]:
                 continue
             candidates.append(candidate)
-    return content_findings("repository-path", "\n".join(candidates).encode())
+    return privacy_findings(pathlib.Path(name), b"") + content_findings("repository-path", "\n".join(candidates).encode())
 
 
 def git(*args):
