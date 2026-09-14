@@ -23,8 +23,12 @@ def run(label, *command, cwd=ROOT, timeout=1200, input=None):
     # Build tools need the user's toolchain paths, not the invoking shell's secrets.
     environment = {key: value for key, value in os.environ.items() if key in {
         "PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL",
-        "DEVELOPER_DIR", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET",
+        "MACOSX_DEPLOYMENT_TARGET",
     }}
+    # Only source test/build scripts may select a custom Xcode toolchain.
+    # In particular, xcrun must not resolve release tools from these overrides.
+    if command[0] == "bash":
+        environment.update({key: os.environ[key] for key in ("DEVELOPER_DIR", "SDKROOT") if key in os.environ})
     try:
         with subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                               stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,

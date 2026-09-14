@@ -42,7 +42,9 @@ The release command sends the password through a private stdin pipe to the
 macOS keychain tool, not a command argument. It passes only a small environment
 allowlist to build, test and signing tools. Your existing PATH is preserved;
 source revision checks and export, signing, keychain, packaging and verification
-tools use fixed system paths.
+tools use fixed system paths. Only the source test/build scripts receive
+`DEVELOPER_DIR` and `SDKROOT` overrides. Release tools use the system-selected
+Xcode installation, so those overrides cannot redirect notarization or stapling.
 1Password tokens and unrelated environment secrets are not forwarded. This
 automation does not change private-key access rules. During one-time setup,
 authorize the system codesign tool for this identity; do not allow all applications.
