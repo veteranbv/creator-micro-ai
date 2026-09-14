@@ -93,6 +93,7 @@ def clean_revision(revision):
 
 
 def verify(app, config):
+    # codesign treats a leading '=' as inline source; without it this is a filename.
     requirement = (f'=anchor apple generic and identifier "{BUNDLE_ID}" and '
                    'certificate leaf[field.1.2.840.113635.100.6.1.13] exists and '
                    f'certificate leaf[subject.OU] = "{config["team_id"]}"')
