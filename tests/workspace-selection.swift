@@ -51,6 +51,14 @@ final class Node {
         precondition(select(wrapped(sidebar, levels: 32))?.code === code)
         precondition(select(wrapped(sidebar, levels: 33)) == nil)
         precondition(select(Node("", [sidebar, wrapped(sidebar, levels: 12)])) == nil)
+        for unreadable in [root, sidebar, mode] {
+            precondition(WorkspaceSelection.controls(root: root, labels: { $0.labels },
+                children: { $0 === unreadable ? nil : $0.children }, isRadio: { $0.radio }) == nil)
+        }
+        let hiddenBranch = Node("", [sidebar])
+        let incompleteWindow = Node("", [sidebar, hiddenBranch])
+        precondition(WorkspaceSelection.controls(root: incompleteWindow, labels: { $0.labels },
+            children: { $0 === hiddenBranch ? nil : $0.children }, isRadio: { $0.radio }) == nil)
         precondition(select(wrapped(Node("", Array(repeating: Node(), count: 101)), levels: 12)) == nil)
         print("PASS: sidebar Mode pair, nested native windows, composer pruning, ambiguity, incomplete controls and traversal budgets. No app access.")
     }

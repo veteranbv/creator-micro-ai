@@ -28,6 +28,18 @@ enum ControllerTargetTests {
             count += 1
             print("PASS: \(name)")
         }
+        for status: AXError in [.cannotComplete, .invalidUIElement, .failure] {
+            check(ControllerTargetPolicy.attributeValue(status: status, value: "AXGroup", absent: "") == nil,
+                  "attribute error cannot hide a permission container")
+        }
+        check(ControllerTargetPolicy.attributeValue(status: .success, value: Optional<String>.none, absent: "") == nil,
+              "wrong attribute type is incomplete evidence")
+        check(ControllerTargetPolicy.attributeValue(status: .attributeUnsupported, value: Optional<String>.none, absent: "") == "",
+              "unsupported optional attribute is absent")
+        check(ControllerTargetPolicy.attributeValue(status: .noValue, value: Optional<String>.none, absent: "") == "",
+              "optional attribute with no value is absent")
+        check(ControllerTargetPolicy.attributeValue(status: .success, value: "AXGroup", absent: "") == "AXGroup",
+              "successful attribute retains its value")
         check(ControllerTargetPolicy.isOpenAIResponseGroup(["relative", "shrink-0"]),
               "recognizes a flattened response parent group")
         check(!ControllerTargetPolicy.isOpenAIResponseGroup(["turn-action-controls", "h-5"]),

@@ -4,6 +4,14 @@ import Carbon
 
 // Selection rules accept plain test trees as well as live accessibility elements.
 enum ControllerTargetPolicy {
+    static func attributeValue<Value>(status: AXError, value: Value?, absent: Value) -> Value? {
+        switch status {
+        case .success: return value
+        case .attributeUnsupported, .noValue: return absent
+        default: return nil
+        }
+    }
+
     static func childValues<Node>(status: AXError, values: [Node]?) -> [Node]? {
         switch status {
         case .success: return values
@@ -319,34 +327,59 @@ final class ControllerActions {
                 }
             }
         case 3, 4:
+            // A failed predicate read cannot establish that another card is absent.
+            var attributesComplete = true
+            func read<Value>(_ element: AXUIElement, _ key: String, absent: Value) -> Value {
+                var raw: CFTypeRef?
+                let status = AXUIElementCopyAttributeValue(element, key as CFString, &raw)
+                guard let result = ControllerTargetPolicy.attributeValue(status: status, value: raw as? Value, absent: absent) else {
+                    attributesComplete = false
+                    return absent
+                }
+                return result
+            }
+            func names(_ element: AXUIElement) -> [String] {
+                [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute].map {
+                    read(element, $0, absent: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+            func button(_ element: AXUIElement) -> Bool {
+                [kAXButtonRole, kAXPopUpButtonRole].contains(read(element, kAXRoleAttribute, absent: ""))
+                    && read(element, kAXEnabledAttribute, absent: false)
+            }
+            func parts(_ element: AXUIElement) -> [AXUIElement]? {
+                guard let result = children(element) else { attributesComplete = false; return nil }
+                return result
+            }
             let requestControls: [AXUIElement]
             if claude {
                 // Observed Claude panel: Permission request: run, with numbered action labels.
                 let requests = all.count < 5000 ? all.filter {
-                    (value($0, kAXRoleAttribute) as? String) == kAXGroupRole
-                        && labels($0).contains { $0.hasPrefix("Permission request: ") }
+                    read($0, kAXRoleAttribute, absent: "") == kAXGroupRole
+                        && names($0).contains { $0.hasPrefix("Permission request: ") }
                 } : []
                 requestControls = ControllerTargetPolicy.claudePermissionContents(requests: requests,
-                    group: { self.completeDescendants($0, limit: $1) }).filter(actionable)
+                    group: { self.completeDescendants($0, limit: $1) }).filter(button)
             } else {
                 requestControls = ControllerTargetPolicy.openAIPermissionButtons(nodes: all,
-                    children: children,
-                    isGroup: { (self.value($0, kAXRoleAttribute) as? String) == kAXGroupRole },
+                    children: parts,
+                    isGroup: { read($0, kAXRoleAttribute, absent: "") == kAXGroupRole },
                     isAlert: {
-                        (self.value($0, kAXRoleAttribute) as? String) == kAXGroupRole
-                            && (self.value($0, kAXSubroleAttribute) as? String) == "AXApplicationAlert"
+                        read($0, kAXRoleAttribute, absent: "") == kAXGroupRole
+                            && read($0, kAXSubroleAttribute, absent: "") == "AXApplicationAlert"
                     },
                     isPermissionsText: {
-                        (self.value($0, kAXRoleAttribute) as? String) == kAXStaticTextRole
-                            && (self.matches($0, ["Permissions"])
-                                || (self.value($0, kAXValueAttribute) as? String) == "Permissions")
+                        read($0, kAXRoleAttribute, absent: "") == kAXStaticTextRole
+                            && (names($0).contains("Permissions")
+                                || read($0, kAXValueAttribute, absent: "") == "Permissions")
                     },
                     isForm: {
-                        (self.value($0, kAXRoleAttribute) as? String) == kAXGroupRole
+                        read($0, kAXRoleAttribute, absent: "") == kAXGroupRole
                             && ControllerTargetPolicy.isOpenAIApprovalForm(
-                                self.value($0, "AXDOMClassList") as? [String] ?? [])
-                    }, isButton: actionable)
+                                read($0, "AXDOMClassList", absent: [String]()))
+                    }, isButton: button)
             }
+            guard attributesComplete else { NSSound.beep(); return }
             // Read each label set once so both classifications use the same values.
             var approvals: [AXUIElement] = [], declines: [AXUIElement] = []
             for control in requestControls {
