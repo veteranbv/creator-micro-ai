@@ -47,7 +47,7 @@ EMAIL = re.compile(rb"[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
 
 def content_findings(name, data):
     issues = privacy_findings(pathlib.Path(name), data)
-    if name.endswith(".png") and not metadata_clean(data):
+    if name.lower().endswith(".png") and not metadata_clean(data):
         issues.append("artwork metadata requires sanitization")
     try:
         data.decode("utf-8")
