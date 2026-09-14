@@ -32,7 +32,7 @@ final class DeviceBridge {
         output = outgoing.fileHandleForReading
         buffer.removeAll()
         outgoing.fileHandleForReading.readabilityHandler = { [weak self, weak task] handle in
-            let data = BridgePipeReader.readAvailable(from: handle)
+            let data = BridgePipe.readAvailable(from: handle)
             if data.isEmpty { handle.readabilityHandler = nil }
             DispatchQueue.main.async {
                 guard let self, let task, self.process === task else { return }
@@ -48,8 +48,16 @@ final class DeviceBridge {
                 self.retry()
             }
         }
-        do { try task.run() }
+        do {
+            try BridgePipe.prepareWriter(incoming.fileHandleForWriting.fileDescriptor)
+            try task.run()
+            // Only the child may hold these ends; otherwise EOF/EPIPE is hidden.
+            // Foundation may already have closed them while launching the child.
+            try? incoming.fileHandleForReading.close()
+            try? outgoing.fileHandleForWriting.close()
+        }
         catch {
+            if task.isRunning { task.terminate() }
             closeHandles()
             process = nil
             onMessage?(BridgeMessage(type: "error", layer: nil, requestId: nil))

@@ -18,7 +18,7 @@ enum BridgePipeTests {
         // or buffer-sized payload can hide a reader that waits for more bytes.
         var index = 0
         reader.readabilityHandler = { handle in
-            let data = BridgePipeReader.readAvailable(from: handle)
+            let data = BridgePipe.readAvailable(from: handle)
             if data.isEmpty {
                 handle.readabilityHandler = nil
                 ended.signal()
@@ -39,11 +39,39 @@ enum BridgePipeTests {
 
         let bounded = Pipe()
         try bounded.fileHandleForWriting.write(contentsOf: Data(repeating: 0x61, count: 9000))
-        precondition(BridgePipeReader.readAvailable(from: bounded.fileHandleForReading).count == 8192)
-        precondition(BridgePipeReader.readAvailable(from: bounded.fileHandleForReading).count == 808)
+        precondition(BridgePipe.readAvailable(from: bounded.fileHandleForReading).count == 8192)
+        precondition(BridgePipe.readAvailable(from: bounded.fileHandleForReading).count == 808)
         try bounded.fileHandleForWriting.close()
-        precondition(BridgePipeReader.readAvailable(from: bounded.fileHandleForReading).isEmpty)
+        precondition(BridgePipe.readAvailable(from: bounded.fileHandleForReading).isEmpty)
         try bounded.fileHandleForReading.close()
-        print("PASS: short live-pipe chunks, repeated reads, bounded reads and EOF. No device access.")
+        let broken = Pipe()
+        try BridgePipe.prepareWriter(broken.fileHandleForWriting.fileDescriptor)
+        try broken.fileHandleForReading.close()
+        var failed = false
+        do { try broken.fileHandleForWriting.write(contentsOf: Data([0x0A])) }
+        catch { failed = true }
+        precondition(failed, "A closed reader must throw without terminating the helper")
+        try broken.fileHandleForWriting.close()
+        do {
+            try BridgePipe.prepareWriter(-1)
+            preconditionFailure("Closed descriptors must reject writer setup")
+        } catch {}
+        let task = Process(), childInput = Pipe(), childOutput = Pipe()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+        task.standardInput = childInput
+        task.standardOutput = childOutput
+        try BridgePipe.prepareWriter(childInput.fileHandleForWriting.fileDescriptor)
+        try task.run()
+        try? childInput.fileHandleForReading.close()
+        try? childOutput.fileHandleForWriting.close()
+        task.waitUntilExit()
+        precondition(BridgePipe.readAvailable(from: childOutput.fileHandleForReading).isEmpty)
+        failed = false
+        do { try childInput.fileHandleForWriting.write(contentsOf: Data([0x0A])) }
+        catch { failed = true }
+        precondition(failed, "An exited child must not leave a parent-held reader hiding EPIPE")
+        try childInput.fileHandleForWriting.close()
+        try childOutput.fileHandleForReading.close()
+        print("PASS: short live-pipe chunks, bounded reads, EOF and broken-pipe survival. No device access.")
     }
 }

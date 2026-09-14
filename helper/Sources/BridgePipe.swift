@@ -1,7 +1,14 @@
 import Darwin
 import Foundation
 
-enum BridgePipeReader {
+enum BridgePipe {
+    static func prepareWriter(_ descriptor: Int32) throws {
+        // Suppress SIGPIPE only for this descriptor, not for the entire process.
+        guard fcntl(descriptor, F_SETNOSIGPIPE, 1) != -1 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+    }
+
     // A pipe message can be much smaller than the buffer while its writer stays open.
     // One read returns those bytes immediately; message framing belongs to DeviceBridge.
     static func readAvailable(from handle: FileHandle) -> Data {
