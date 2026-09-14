@@ -37,9 +37,10 @@ class PublicationTests(unittest.TestCase):
             bundle.writestr("private/.env", "SYNTHETIC_CREDENTIAL=fixture")
         for name in ("source.zip", "submission.zip", "download" + ".ZIP", "renamed.bin", "tag-blob"):
             self.assertIn("archive artifact must not be published", content_findings(name, archive.getvalue()))
+            self.assertIn("archive artifact must not be published", content_findings(name, b"#!/bin/sh\nexit 0\n" + archive.getvalue()))
         for name in ("source.zip", "submission.zip", "download" + ".ZIP"):
             self.assertIn("archive artifact must not be published", publication_check.path_findings(name))
-        self.assertFalse(content_findings("fixture.py", b'archive = "source.zip"; upload = "submission.zip"'))
+        self.assertFalse(content_findings("fixture.py", b'archive = stage / "source.zip"; upload = stage / "submission.zip"'))
         with tempfile.TemporaryDirectory(prefix="publication-archive-test-") as directory:
             root = pathlib.Path(directory)
             env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
@@ -48,19 +49,29 @@ class PublicationTests(unittest.TestCase):
             git("init", "-b", "main")
             git("config", "user.name", "Fixture")
             git("config", "user.email", "123+fixture@users.noreply.github.com")
-            (root / "source.zip").write_bytes(archive.getvalue())
-            git("add", "source.zip")
+            (root / "renamed.bin").write_bytes(b"#!/bin/sh\nexit 0\n" + archive.getvalue())
+            git("add", "renamed.bin")
             with mock.patch.object(privacy_check, "ROOT", root), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(privacy_check.main(), 1)
             git("-c", "commit.gpgsign=false", "commit", "-m", "Add archive fixture")
-            git("rm", "source.zip")
+            git("rm", "renamed.bin")
             git("-c", "commit.gpgsign=false", "commit", "-m", "Remove archive fixture")
             with mock.patch.object(publication_check, "ROOT", root), mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(publication_check.main(), 1)
 
+    def test_new_filename_exemptions_require_path_syntax(self):
+        for stem, suffix in (("release", "py"), ("releases", "md"), ("source", "zip"), ("submission", "zip")):
+            filename = stem + "." + suffix
+            self.assertFalse(content_findings("fixture.py", ('path = stage / "' + filename + '"').encode()))
+            self.assertFalse(content_findings("README.md", ('[File](docs/' + filename + ')').encode()))
+            for name in ("fixture.py", "README.md", "repository-path", "scripts/publication_check.py", "tests/test_publication.py"):
+                for source in ('socket.connect(("' + filename + '", 443))', 'endpoint = "' + filename + '"',
+                               '# ' + filename, 'endpoint = "https://' + filename + '"'):
+                    self.assertTrue(content_findings(name, source.encode()))
+
     def test_signing_branch_source_references_are_not_hosts(self):
         for name in ("releases.md", "release.py", "source.zip", "submission.zip"):
-            self.assertFalse(content_findings("README.md", name.encode()))
+            self.assertTrue(content_findings("README.md", name.encode()))
         for name in ("releases.md", "release.py"):
             self.assertFalse(publication_check.path_findings(name))
         for expression in ("release.run", "download.name", "self.fail"):
