@@ -58,6 +58,10 @@ bash scripts/build.sh
 
 The build creates `build/Creator Micro AI.app` without launching it, altering Accessibility permissions or writing the device. Source builds use ad-hoc signing. They are not notarized downloads.
 
+Maintainers can use the [local signed release workflow](docs/releases.md) to build a
+universal, Developer ID-signed and notarized ZIP. Signing keys stay on the signing Mac;
+GitHub tests do not need credentials.
+
 ## Privacy first
 
 No keystroke recorder, clipboard reader, audio recorder, analytics, background upload or runtime action log. The helper registers only five reserved controller shortcuts and examines supported apps' accessibility controls in memory. Some accessibility labels can contain conversation text; those labels are not persisted or transmitted. The USB bridge communicates through private inherited pipes, not a listening network port.

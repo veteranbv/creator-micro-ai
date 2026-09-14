@@ -11,7 +11,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class BuildTests(unittest.TestCase):
-    def assemble(self, signing_fails=False, minimum="13.2", actual="13.2"):
+    def assemble(self, signing_fails=False, minimum="13.2", actual="13.2", universal=False):
         temporary = tempfile.TemporaryDirectory(prefix="bundle-test-")
         self.addCleanup(temporary.cleanup)
         root = pathlib.Path(temporary.name)
@@ -27,6 +27,7 @@ class BuildTests(unittest.TestCase):
             "otool": '#!/bin/sh\nprintf "cmd LC_BUILD_VERSION\\nplatform 1\\nminos %s\\n" "' + actual + '"\n',
             "swiftc": '#!/bin/sh\nprintf "%s\\n" "$@" > compiler-arguments\nwhile [ "$#" -gt 0 ]; do\nif [ "$1" = -o ]; then shift; printf fixture > "$1"; exit 0; fi\nshift\ndone\nexit 1\n',
             "codesign": "#!/bin/sh\nexit " + ("1" if signing_fails else "0") + "\n",
+            "lipo": '#!/bin/sh\nprintf "%s\\n" "$@" >> lipo-arguments\nif [ "$1" = -create ]; then\nwhile [ "$1" != -output ]; do shift; done\nshift; printf fixture > "$1"\nfi\n',
         }
         for name, body in commands.items():
             command = root / "bin" / name
@@ -37,11 +38,23 @@ class BuildTests(unittest.TestCase):
         stale.parent.mkdir(parents=True)
         stale.write_text("previous build fixture")
         result = subprocess.run(
-            ["bash", "scripts/build.sh"], cwd=root,
+            ["bash", "scripts/build.sh"] + (["--universal"] if universal else []), cwd=root,
             env={**os.environ, "PATH": str(root / "bin") + os.pathsep + os.environ["PATH"]},
             capture_output=True, text=True,
         )
         return root, app, result
+
+    def test_universal_build_combines_and_verifies_both_architectures(self):
+        root, app, result = self.assemble(universal=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        arguments = (root / "lipo-arguments").read_text().splitlines()
+        self.assertEqual(arguments[0], "-create")
+        self.assertTrue(arguments[1].endswith("CreatorMicroAI-arm64"))
+        self.assertTrue(arguments[2].endswith("CreatorMicroAI-x86_64"))
+        self.assertIn("-verify_arch", arguments)
+        self.assertTrue(arguments[-4].endswith("Contents/MacOS/CreatorMicroAI"))
+        self.assertEqual(arguments[-3:], ["-verify_arch", "arm64", "x86_64"])
+        self.assertTrue((app / "Contents/MacOS/CreatorMicroAI").is_file())
 
     def test_rebuild_excludes_stale_resources_and_preserves_previous_bundle(self):
         root, app, result = self.assemble()
