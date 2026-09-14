@@ -22,6 +22,8 @@ RUNTIME_BANNED = [
 
 def findings(path, data):
     issues = []
+    if path.suffix.lower() == ".zip" or data.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")):
+        issues.append("archive artifact must not be published")
     if any(re.search(pattern, data) for pattern in SECRET_PATTERNS):
         issues.append("possible credential or personal absolute path")
     if path.parts[0] == "helper":
