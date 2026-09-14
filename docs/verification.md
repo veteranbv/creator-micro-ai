@@ -20,6 +20,8 @@ This confirms normal operation on the tested setup, not every failure mode. Exac
 
 The subsequent review candidate also aborts workspace and action selection on unreadable labels, requires complete trees for model/search controls, and binds delayed approvals to the original focused window and control. Injected accessibility fixtures cover label and tree failures. Source assertions verify the delayed approval guards; live same-process window switching during the delay is not yet verified. This candidate is built separately and has not replaced the accepted installation above.
 
+The candidate resumes an interrupted layer activation after bridge recovery, with synthetic state-transition coverage. The fixed ChatGPT model shortcut no longer traverses conversation contents; its ordering has source-assertion coverage. The build checks that the executable's minimum macOS version matches the manifest. Compiling for macOS 13 does not establish a successful live launch on that OS.
+
 ## Wired verification checkpoint
 
 On 2026-09-13, the tester reported that the installed source build completed the wired 1 → 2 → 3 → 4 → 1 cycle, switching both the foreground app and its selected view. The tester then checked all keys across the wired layers and reported that they worked. These are user-reported physical results, not automated test results.

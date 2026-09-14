@@ -1,11 +1,17 @@
 // Track device state without activating a workspace on the first connection.
 struct LayerSelection {
     private var lastLayer: Int?
+    private var interrupted = false
+
+    mutating func interruptActivation() {
+        interrupted = true
+    }
 
     mutating func ready(_ layer: Int?) -> Int? {
         guard let layer, (1...4).contains(layer) else { return nil }
-        let changed = lastLayer != nil && lastLayer != layer
+        let changed = lastLayer != nil && (lastLayer != layer || interrupted)
         lastLayer = layer
+        interrupted = false
         return changed ? layer : nil
     }
 

@@ -267,6 +267,7 @@ bridge.onMessage = { message in
 
     case "error":
         baselineReceived = false
+        if activationInProgress { layerSelection.interruptActivation() }
         activationGeneration += 1
         activationInProgress = false
         pendingLayer = nil

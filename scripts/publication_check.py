@@ -7,7 +7,7 @@ import subprocess
 from urllib.parse import urlsplit
 
 from privacy_check import findings as privacy_findings
-from artwork_metadata import metadata_clean
+from artwork_metadata import metadata_clean, sanitized_icon
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ALLOWED_DOMAINS = {
@@ -49,6 +49,13 @@ def content_findings(name, data):
     issues = privacy_findings(pathlib.Path(name), data)
     if name.lower().endswith(".png") and not metadata_clean(data):
         issues.append("artwork metadata requires sanitization")
+    if name.lower().endswith(".icns") or data.startswith(b"icns"):
+        try:
+            clean = sanitized_icon(data) == data
+        except ValueError:
+            clean = False
+        if not clean:
+            issues.append("icon metadata requires sanitization")
     try:
         data.decode("utf-8")
     except UnicodeDecodeError:

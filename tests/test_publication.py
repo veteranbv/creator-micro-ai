@@ -67,6 +67,34 @@ class PublicationTests(unittest.TestCase):
                 self.assertIn("artwork metadata requires sanitization",
                               content_findings(name, start + chunk(kind, b"Synthetic metadata") + end))
 
+    def test_embedded_icon_metadata_is_checked_in_history_and_unnamed_blobs(self):
+        from artwork_metadata import sanitized_icon
+        def chunk(kind, payload=b""):
+            return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload))
+        png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR") + chunk(b"eXIf", b"Synthetic metadata") + chunk(b"IEND")
+        icon = b"icns" + struct.pack(">I", len(png) + 16) + b"ic07" + struct.pack(">I", len(png) + 8) + png
+        for name in ("assets/AppIcon.icns", "assets/ICON.ICNS", "tag-blob"):
+            self.assertIn("icon metadata requires sanitization", content_findings(name, icon))
+            self.assertFalse(content_findings(name, sanitized_icon(icon)))
+        self.assertIn("icon metadata requires sanitization", content_findings("icon.icns", icon[:-1]))
+        with tempfile.TemporaryDirectory(prefix="publication-icon-test-") as directory:
+            root = pathlib.Path(directory)
+            env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
+            git("init", "-b", "main")
+            git("config", "user.name", "Fixture")
+            git("config", "user.email", "123+fixture@users.noreply.github.com")
+            file = root / "icon.icns"
+            file.write_bytes(icon)
+            git("add", "icon.icns")
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Add synthetic icon")
+            file.write_bytes(sanitized_icon(icon))
+            git("add", "icon.icns")
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Sanitize current icon")
+            with mock.patch.object(publication_check, "ROOT", root), mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(publication_check.main(), 1)
+
     def test_credential_artifact_names_are_case_insensitive(self):
         for suffix in ("pem", "p12", "mobileprovision", "log", "har", "trace"):
             for variant in (suffix, suffix.upper(), suffix.title()):
