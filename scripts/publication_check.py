@@ -24,7 +24,8 @@ PUBLIC_TLDS = {
 } | {"test", "local", "internal", "invalid"}
 # Schemes establish an authority regardless of host syntax. A bare authority
 # must start at a token boundary, not inside an XML public identifier.
-URL = re.compile(rb"\b[a-zA-Z][a-zA-Z0-9+.-]*:/{2}[^\s<>\"']+|(?<![\w+./:-])/{2}(?=[\w%~!$&*+,;=:@.-]|\[[0-9a-fA-FvV:])[^\s<>\"']+", re.IGNORECASE)
+# Look ahead so an allowed outer URL cannot consume a nested authority.
+URL = re.compile(rb"(?=(\b[a-zA-Z][a-zA-Z0-9+.-]*:/{2}[^\s<>\"']+|(?<![\w+./:-])/{2}(?=[\w%~!$&*+,;=:@.-]|\[[0-9a-fA-FvV:])[^\s<>\"']+))", re.IGNORECASE)
 # These exact references are files, not hosts. URLs never use this exception.
 FILE_REFERENCES = {
     "README.md", "CONTRIBUTING.md", "PRIVACY.md", "AGENTS.md", "NOTICE.md", "SECURITY.md",
@@ -117,13 +118,13 @@ def content_findings(name, data, *, path_context=False):
     # Scan a decoded view for serialized URLs, without changing source offsets.
     # Be conservative: source comments and multiline strings are not exempt.
     url_data = re.sub(rb"\\+(?:[/.]|u00([0-9a-fA-F]{2})|x([0-9a-fA-F]{2}))",
-                      lambda m: bytes([int(m[1] or m[2], 16)]) if m[1] or m[2] else m.group()[-1:], data)
+                      lambda m: bytes([int(m[1] or m[2], 16)]).replace(b"\\", b"/") if m[1] or m[2] else m.group()[-1:], data)
     for match in URL.finditer(url_data):
         # Only visibly generic secret-reference examples belong in public docs.
-        if re.fullmatch(rb"op:/{2}YOUR_[A-Z_]+/YOUR_[A-Z_]+/[a-z-]+", match.group()):
+        if re.fullmatch(rb"op:/{2}YOUR_[A-Z_]+/YOUR_[A-Z_]+/[a-z-]+", match[1]):
             continue
         try:
-            host = urlsplit(match.group().decode()).hostname
+            host = urlsplit(match[1].decode()).hostname
         except ValueError:
             host = None
         if not host or host.lower() not in ALLOWED_DOMAINS:
