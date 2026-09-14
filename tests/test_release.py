@@ -99,6 +99,16 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.calls[-1], ("Restore keychain search list",
                          ("security", "list-keychains", "-d", "user", "-s", "/synthetic/login.keychain-db")))
 
+    def test_interrupted_signing_restores_original_search_list(self):
+        def interrupted(label, *args, **kwargs):
+            if label == "Sign using local keychain":
+                raise KeyboardInterrupt
+            return self.command(label, *args, **kwargs)
+        with patch.object(release, "run", side_effect=interrupted):
+            with self.assertRaises(KeyboardInterrupt):
+                release.sign(self.root / "Creator Micro AI.app", self.config)
+        self.assertEqual(self.calls[-1][0], "Restore keychain search list")
+
     def test_dirty_source_and_missing_identity_stop_before_signing(self):
         for field in ("dirty", "identity"):
             with self.subTest(field=field):
