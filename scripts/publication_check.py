@@ -22,9 +22,9 @@ PUBLIC_TLDS = {
     line.lower() for line in pathlib.Path(__file__).with_name("public-tlds.txt").read_text().splitlines()
     if line and not line.startswith("#")
 } | {"test", "local", "internal", "invalid"}
-# Dotted authorities also cover non-HTTP and scheme-relative endpoints. Do not
-# mistake XML public identifiers or placeholder secret references for hosts.
-URL = re.compile(rb"https?://[^\s<>\"']+|//[^\s/<>\"']*\.[^\s/<>\"']+", re.IGNORECASE)
+# Schemes establish an authority regardless of host syntax. A bare authority
+# must start at a token boundary, not inside an XML public identifier.
+URL = re.compile(rb"\b[a-zA-Z][a-zA-Z0-9+.-]*:/{2}[^\s<>\"']+|(?<![\w+./:-])/{2}(?=[\w%~!$&*+,;=:@.-]|\[[0-9a-fA-FvV:])[^\s<>\"']+", re.IGNORECASE)
 # These exact references are files, not hosts. URLs never use this exception.
 FILE_REFERENCES = {
     "README.md", "CONTRIBUTING.md", "PRIVACY.md", "AGENTS.md", "NOTICE.md", "SECURITY.md",
@@ -115,6 +115,9 @@ def content_findings(name, data, *, path_context=False):
         return issues  # Binary metadata is reviewed separately, not treated as prose.
     member_spans, path_spans = python_reference_spans(name, data)
     for match in URL.finditer(data):
+        # Only visibly generic secret-reference examples belong in public docs.
+        if re.fullmatch(rb"op:/{2}YOUR_[A-Z_]+/YOUR_[A-Z_]+/[a-z-]+", match.group()):
+            continue
         try:
             host = urlsplit(match.group().decode()).hostname
         except ValueError:
