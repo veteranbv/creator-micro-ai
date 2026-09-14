@@ -12,8 +12,12 @@ final class DeviceBridge {
     private var stopped = false
 
     func start() {
-        guard !stopped, process == nil,
-              let script = Bundle.main.path(forResource: "worklouder_device_bridge", ofType: "js") else { return }
+        guard !stopped, process == nil else { return }
+        guard let script = Bundle.main.path(forResource: "worklouder_device_bridge", ofType: "js") else {
+            onMessage?(BridgeMessage(type: "error", layer: nil, requestId: nil))
+            retry()
+            return
+        }
         let task = Process(), incoming = Pipe(), outgoing = Pipe()
         task.executableURL = URL(fileURLWithPath: "/Applications/input.app/Contents/MacOS/input")
         task.arguments = [script]
@@ -28,7 +32,7 @@ final class DeviceBridge {
         output = outgoing.fileHandleForReading
         buffer.removeAll()
         outgoing.fileHandleForReading.readabilityHandler = { [weak self, weak task] handle in
-            let data = (try? handle.read(upToCount: 8192)) ?? Data()
+            let data = BridgePipeReader.readAvailable(from: handle)
             if data.isEmpty { handle.readabilityHandler = nil }
             DispatchQueue.main.async {
                 guard let self, let task, self.process === task else { return }
@@ -48,6 +52,7 @@ final class DeviceBridge {
         catch {
             closeHandles()
             process = nil
+            onMessage?(BridgeMessage(type: "error", layer: nil, requestId: nil))
             retry()
         }
     }
@@ -98,8 +103,18 @@ final class DeviceBridge {
 
 final class HelperLifecycle: NSObject, NSApplicationDelegate {
     private let bridge: DeviceBridge
+    private let healthSnapshot: () -> HelperHealth
     private var statusItem: NSStatusItem?
-    init(bridge: DeviceBridge) { self.bridge = bridge }
+    private let connectionInfo = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let accessibilityInfo = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let inputMonitoringInfo = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let switchingInfo = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let recoveryInfo = NSMenuItem(title: "Check device connection, Input installation and Input Monitoring.", action: nil, keyEquivalent: "")
+    private let permissionInfo = NSMenuItem(title: "After updating, re-add this app in both permission lists, then quit and reopen.", action: nil, keyEquivalent: "")
+    init(bridge: DeviceBridge, health: @escaping () -> HelperHealth) {
+        self.bridge = bridge
+        self.healthSnapshot = health
+    }
     func configureMenu() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "Creator Micro AI")
@@ -107,12 +122,30 @@ final class HelperLifecycle: NSObject, NSApplicationDelegate {
         let info = NSMenuItem(title: "Creator Micro AI · local helper", action: nil, keyEquivalent: "")
         info.isEnabled = false
         menu.addItem(info)
+        for row in [connectionInfo, accessibilityInfo, inputMonitoringInfo, switchingInfo, recoveryInfo, permissionInfo] {
+            row.isEnabled = false
+            menu.addItem(row)
+        }
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit Creator Micro AI", action: #selector(quitHelper), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
         item.menu = menu
         statusItem = item
+        updateStatus()
+    }
+    func updateStatus() {
+        let current = healthSnapshot()
+        connectionInfo.title = current.connectionTitle
+        accessibilityInfo.title = current.accessibilityTitle
+        inputMonitoringInfo.title = current.inputMonitoringTitle
+        switchingInfo.title = current.switchingTitle
+        recoveryInfo.isHidden = current.connection != .unavailable
+        permissionInfo.isHidden = current.accessibilityTrusted && current.inputMonitoringTrusted
+        let description = "Creator Micro AI. \(current.connectionTitle). \(current.accessibilityTitle). \(current.inputMonitoringTitle). \(current.switchingTitle)."
+        statusItem?.button?.image = NSImage(systemSymbolName: current.needsAttention ? "exclamationmark.triangle" : "keyboard",
+                                          accessibilityDescription: description)
+        statusItem?.button?.toolTip = description
     }
     @objc private func quitHelper() { NSApp.terminate(nil) }
     func applicationWillTerminate(_ notification: Notification) { bridge.stop() }

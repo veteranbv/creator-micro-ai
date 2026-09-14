@@ -116,26 +116,25 @@ private func pressWorkspaceButton(in app: NSRunningApplication, mode: WorkspaceM
 
 private var activationGeneration = 0
 private var activationInProgress = false
+private var health = HelperHealth()
 
 private func activate(_ mode: WorkspaceMode, completion: @escaping (Bool) -> Void) {
     activationGeneration += 1
     let generation = activationGeneration
     activationInProgress = true
+    health.beginSwitch()
     func finish(_ success: Bool) {
         guard generation == activationGeneration else { return }
         activationInProgress = false
+        health.finishSwitch(success: success)
         completion(success)
     }
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = true
     configuration.addsToRecentItems = false
     NSWorkspace.shared.openApplication(at: mode.appURL, configuration: configuration) { app, error in
-        if error != nil {
-            finish(false)
-            return
-        }
-        guard let app else {
-            finish(false)
+        guard error == nil, let app else {
+            DispatchQueue.main.async { finish(false) }
             return
         }
         DispatchQueue.main.async {
@@ -183,7 +182,12 @@ private func activate(_ mode: WorkspaceMode, completion: @escaping (Bool) -> Voi
                     finish(false)
                     return
                 }
-                _ = pressWorkspaceButton(in: app, mode: mode)
+                // Some desktop builds expose no numeric radio value. A successful
+                // targeted press must not be repeated just because state is unreadable.
+                if pressWorkspaceButton(in: app, mode: mode) {
+                    finish(true)
+                    return
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { check(attempt + 1) }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { check(0) }
@@ -195,6 +199,8 @@ let promptOptions = [
     kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
 ] as CFDictionary
 let trusted = AXIsProcessTrustedWithOptions(promptOptions)
+health.accessibilityTrusted = trusted
+health.inputMonitoringTrusted = CGPreflightListenEventAccess()
 
 private let bridge = DeviceBridge()
 private var lastObserved: WorkspaceMode?
@@ -208,8 +214,10 @@ private var focusRetryAfter = Date.distantPast
 private var lastPermissionState = trusted
 
 bridge.onMessage = { message in
+    health.receive(type: message.type, layer: message.layer)
     switch message.type {
     case "ready":
+        guard let readyLayer = message.layer, (1...4).contains(readyLayer) else { return }
         let changedLayer = layerSelection.ready(message.layer)
         baselineReceived = true
         pendingLayer = nil
@@ -255,6 +263,9 @@ bridge.onMessage = { message in
         }
 
     case "error":
+        baselineReceived = false
+        activationGeneration += 1
+        activationInProgress = false
         pendingLayer = nil
         pendingRequest = nil
         lastApplied = nil
@@ -268,12 +279,16 @@ bridge.start()
 
 Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { _ in
     let permission = AXIsProcessTrusted()
+    health.accessibilityTrusted = permission
+    health.inputMonitoringTrusted = CGPreflightListenEventAccess()
+    health.checkStartup(now: ProcessInfo.processInfo.systemUptime)
+    lifecycle.updateStatus()
     if permission != lastPermissionState {
         lastPermissionState = permission
         lastObserved = nil
         lastApplied = nil
     }
-    guard permission, !activationInProgress else { return }
+    guard permission, baselineReceived, !activationInProgress else { return }
     if pendingLayer != nil, Date().timeIntervalSince(pendingSince) > 12 {
         pendingLayer = nil
         pendingRequest = nil
@@ -298,7 +313,7 @@ private let application = NSApplication.shared
 application.setActivationPolicy(.accessory)
 private let controllerActions = ControllerActions()
 controllerActions.start()
-private let lifecycle = HelperLifecycle(bridge: bridge)
+private let lifecycle = HelperLifecycle(bridge: bridge, health: { health })
 application.delegate = lifecycle
 lifecycle.configureMenu()
 application.run()

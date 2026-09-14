@@ -31,6 +31,23 @@ class PublicationTests(unittest.TestCase):
         self.assertFalse(content_findings("fixture.py", b"source.name"))
         self.assertTrue(content_findings("README.md", b"source.name"))
 
+    def test_native_pipe_read_is_source_only(self):
+        self.assertFalse(content_findings("fixture.swift", b"Darwin.read"))
+        self.assertTrue(content_findings("README.md", b"Darwin.read"))
+        self.assertTrue(content_findings("fixture.swift", b"https://" + b"Darwin.read"))
+
+    def test_untracked_source_is_checked_before_staging(self):
+        with tempfile.TemporaryDirectory(prefix="publication-new-test-") as directory:
+            root = pathlib.Path(directory)
+            (root / "new.swift").write_text("private-project" + ".ai")
+            def git(*args):
+                if args[0] == "for-each-ref" or args[0] == "rev-list":
+                    return b""
+                self.assertEqual(args, ("ls-files", "--cached", "--others", "--exclude-standard", "-z"))
+                return b"new.swift\0"
+            with mock.patch.object(publication_check, "ROOT", root), mock.patch.object(publication_check, "git", git), mock.patch.object(sys, "argv", ["check"]), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(publication_check.main(), 1)
+
     def test_documented_file_references_are_not_hosts(self):
         self.assertFalse(content_findings("README.md", b"bash scripts/test.sh"))
         self.assertFalse(content_findings("README.md", b"[Setup](docs/setup.md)"))

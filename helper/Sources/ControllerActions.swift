@@ -55,6 +55,32 @@ enum ControllerTargetPolicy {
         let contents = group(requests[0], 101)
         return contents.count < 101 ? contents : []
     }
+
+    static func isOpenAIApprovalForm(_ classes: [String]) -> Bool {
+        Set(["@max-md/approval-card:flex-col", "@max-md/approval-card:items-stretch"])
+            .isSubset(of: Set(classes))
+    }
+
+    static func openAIPermissionButtons<Node>(nodes: [Node], children: (Node) -> [Node]?,
+        isGroup: (Node) -> Bool, isAlert: (Node) -> Bool, isPermissionsText: (Node) -> Bool,
+        isForm: (Node) -> Bool, isButton: (Node) -> Bool) -> [Node] {
+        // The permission alert and action form are siblings, not nested inside each other.
+        let alerts = nodes.filter { node in
+            isAlert(node) && (children(node)?.contains(where: isPermissionsText) == true)
+        }
+        guard alerts.count == 1 else { return [] }
+        let cards = nodes.filter { node in
+            guard isGroup(node), let parts = children(node), parts.count == 2 else { return false }
+            return parts.filter { part in
+                isAlert(part) && (children(part)?.contains(where: isPermissionsText) == true)
+            }.count == 1
+        }
+        guard cards.count == 1, let parts = children(cards[0]) else { return [] }
+        let forms = parts.filter(isForm)
+        guard forms.count == 1, let buttons = children(forms[0]),
+              (2...3).contains(buttons.count), buttons.allSatisfy(isButton) else { return [] }
+        return buttons
+    }
 }
 
 // Reserved controller shortcuts only. No event tap, typed-text capture, or clipboard reads.
@@ -258,8 +284,25 @@ final class ControllerActions {
                     ControllerTargetPolicy.isClaudeApprovalName($0, approve: false)
                 } }
             } else {
-                approvals = controls.filter { matches($0, ["Allow once"]) }
-                declines = controls.filter { matches($0, ["Deny"]) }
+                let requestControls = ControllerTargetPolicy.openAIPermissionButtons(nodes: all,
+                    children: { self.value($0, kAXChildrenAttribute) as? [AXUIElement] },
+                    isGroup: { (self.value($0, kAXRoleAttribute) as? String) == kAXGroupRole },
+                    isAlert: {
+                        (self.value($0, kAXRoleAttribute) as? String) == kAXGroupRole
+                            && (self.value($0, kAXSubroleAttribute) as? String) == "AXApplicationAlert"
+                    },
+                    isPermissionsText: {
+                        (self.value($0, kAXRoleAttribute) as? String) == kAXStaticTextRole
+                            && (self.matches($0, ["Permissions"])
+                                || (self.value($0, kAXValueAttribute) as? String) == "Permissions")
+                    },
+                    isForm: {
+                        (self.value($0, kAXRoleAttribute) as? String) == kAXGroupRole
+                            && ControllerTargetPolicy.isOpenAIApprovalForm(
+                                self.value($0, "AXDOMClassList") as? [String] ?? [])
+                    }, isButton: actionable)
+                approvals = requestControls.filter { matches($0, ["Allow once"]) }
+                declines = requestControls.filter { matches($0, ["Deny"]) }
             }
             target = ControllerTargetPolicy.pairedApproval(approvals: approvals, declines: declines, approve: id == 3,
                 parent: parent, group: { self.descendants($0, limit: $1) }, equal: { CFEqual($0, $1) })

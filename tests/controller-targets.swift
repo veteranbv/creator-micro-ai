@@ -116,6 +116,58 @@ enum ControllerTargetTests {
         let disconnected = Tree(children: [0: [1], 3: [4]])
         check(disconnected.approval([1], [4]) == nil, "disconnected controls cannot pair")
 
+        // Synthetic permission card: alert/header and form/buttons are direct siblings.
+        let cardTree = Tree(children: [0: [1, 20], 1: [2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 20: [21, 22]])
+        let formClasses = ["flex", "@max-md/approval-card:flex-col", "@max-md/approval-card:items-stretch"]
+        check(ControllerTargetPolicy.isOpenAIApprovalForm(formClasses), "recognizes the observed approval form classes")
+        check(!ControllerTargetPolicy.isOpenAIApprovalForm(["relative", "flex", "flex-col", "gap-2"]),
+              "generic layout classes do not identify an approval form")
+        func openAIButtons(_ tree: Tree = cardTree, alerts: Set<Int> = [2], headers: Set<Int> = [4],
+            forms: Set<Int> = [3], buttons: Set<Int> = [7, 8, 9, 21, 22],
+            unreadable: Set<Int> = []) -> [Int] {
+            ControllerTargetPolicy.openAIPermissionButtons(nodes: tree.group(0, 5000),
+                children: { unreadable.contains($0) ? nil : tree.children[$0] ?? [] },
+                isGroup: { tree.children[$0] != nil }, isAlert: { alerts.contains($0) },
+                isPermissionsText: { headers.contains($0) }, isForm: { forms.contains($0) },
+                isButton: { buttons.contains($0) })
+        }
+        let scoped = openAIButtons()
+        let names = [7: "Deny", 8: "Allow once", 9: "Approval options", 21: "Deny", 22: "Allow once"]
+        let scopedYes = scoped.filter { names[$0] == "Allow once" }
+        let scopedNo = scoped.filter { names[$0] == "Deny" }
+        check(scoped == [7, 8, 9], "ChatGPT scopes controls to the sibling approval form")
+        check(cardTree.approval(scopedYes, scopedNo) == 8, "ChatGPT Y ignores same-named buttons outside the card")
+        check(cardTree.approval(scopedYes, scopedNo, approve: false) == 7,
+              "ChatGPT X ignores same-named buttons outside the card")
+        check(!scopedYes.contains(9), "ChatGPT Y never opens Approval options")
+        check(openAIButtons(alerts: []).isEmpty, "ChatGPT rejects a card without the application alert")
+        check(openAIButtons(headers: []).isEmpty, "ChatGPT rejects an alert without the Permissions text")
+        check(openAIButtons(forms: []).isEmpty, "ChatGPT rejects a card without the marked form")
+        check(openAIButtons(unreadable: [1]).isEmpty, "ChatGPT rejects unreadable card children")
+        check(openAIButtons(unreadable: [2]).isEmpty, "ChatGPT rejects unreadable alert children")
+        check(openAIButtons(unreadable: [3]).isEmpty, "ChatGPT rejects unreadable form children")
+        check(openAIButtons(buttons: [7, 9, 21, 22]).isEmpty, "ChatGPT rejects a disabled or non-button action")
+        let textOnly = Tree(children: [0: [20], 20: [21, 22]])
+        check(openAIButtons(textOnly).isEmpty, "ChatGPT rejects unrelated Allow once and Deny buttons")
+        let split = Tree(children: [0: [1, 20], 1: [2], 2: [4, 5, 6], 20: [3], 3: [7, 8, 9]])
+        check(openAIButtons(split).isEmpty, "ChatGPT rejects an alert and form in different cards")
+        let nested = Tree(children: [0: [1], 1: [2, 10], 2: [4, 5, 6], 10: [3], 3: [7, 8, 9]])
+        check(openAIButtons(nested).isEmpty, "ChatGPT does not guess through an unrecognized form wrapper")
+        let multiple = Tree(children: [0: [1, 11], 1: [2, 3], 2: [4], 3: [7, 8, 9],
+                                      11: [12, 13], 12: [14], 13: [17, 18]])
+        check(openAIButtons(multiple, alerts: [2, 12], headers: [4, 14], forms: [3, 13],
+                            buttons: [7, 8, 9, 17, 18]).isEmpty,
+              "ChatGPT rejects multiple permission alerts instead of choosing a card")
+        let incompleteSecond = Tree(children: [0: [1, 12], 1: [2, 3], 2: [4], 3: [7, 8, 9], 12: [14]])
+        check(openAIButtons(incompleteSecond, alerts: [2, 12], headers: [4, 14]).isEmpty,
+              "ChatGPT rejects a second Permissions alert even without its action form")
+        let twoActions = Tree(children: [0: [1], 1: [2, 3], 2: [4], 3: [7, 8]])
+        check(openAIButtons(twoActions) == [7, 8], "ChatGPT permits the form without the optional dropdown")
+        let extraChild = Tree(children: [0: [1], 1: [2, 3, 10], 2: [4], 3: [7, 8, 9]])
+        check(openAIButtons(extraChild).isEmpty, "ChatGPT rejects an unrecognized card structure")
+        let missingAction = Tree(children: [0: [1], 1: [2, 3], 2: [4], 3: [8]])
+        check(openAIButtons(missingAction).isEmpty, "ChatGPT rejects a partial action form")
+
         print("\(count) target-selection fixture checks passed")
     }
 }
