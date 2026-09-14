@@ -90,9 +90,12 @@ def settings(path):
 def clean_revision(revision):
     if not re.fullmatch(r"[a-f0-9]{40}", revision):
         raise RuntimeError("Pass the full reviewed commit SHA with --revision.")
-    if run("Check source revision", "/usr/bin/git", "rev-parse", "HEAD").strip() != revision:
+    if run("Check replacement refs", "/usr/bin/git", "--no-replace-objects", "for-each-ref",
+           "--format=%(refname)", "refs/replace/").strip():
+        raise RuntimeError("Git replacement references are not allowed in a release checkout.")
+    if run("Check source revision", "/usr/bin/git", "--no-replace-objects", "rev-parse", "HEAD").strip() != revision:
         raise RuntimeError("The checked-out revision does not match --revision.")
-    if run("Check source cleanliness", "/usr/bin/git", "status", "--porcelain", "--untracked-files=all").strip():
+    if run("Check source cleanliness", "/usr/bin/git", "--no-replace-objects", "status", "--porcelain", "--untracked-files=all").strip():
         raise RuntimeError("Commit or remove source changes before releasing.")
 
 
@@ -141,7 +144,7 @@ def release(config, revision, password=None):
     with tempfile.TemporaryDirectory(prefix="release-", dir=output) as temporary:
         stage = pathlib.Path(temporary)
         archive = stage / "source.zip"
-        run("Export exact source revision", "/usr/bin/git", "archive", "--format=zip", f"--output={archive}", revision)
+        run("Export exact source revision", "/usr/bin/git", "--no-replace-objects", "archive", "--format=zip", f"--output={archive}", revision)
         source = stage / "source"
         with zipfile.ZipFile(archive) as bundle:
             bundle.extractall(source)

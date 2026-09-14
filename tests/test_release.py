@@ -1,5 +1,6 @@
 """Test release orchestration without accessing any real keychain or service."""
 import importlib.util
+import io
 import json
 import os
 import pathlib
@@ -83,6 +84,53 @@ class ReleaseTests(unittest.TestCase):
             if tool in system_tools:
                 expected = ("/usr/sbin/" if tool == "spctl" else "/usr/bin/") + tool
                 self.assertEqual(args[0], expected, label)
+                if tool == "git":
+                    self.assertEqual(args[1], "--no-replace-objects", label)
+
+    def test_real_replacement_refs_stop_release_before_credentials(self):
+        checkout = self.root / "checkout"
+        checkout.mkdir()
+        environment = {"PATH": os.environ["PATH"], "HOME": str(self.root),
+                       "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+        def git(*args):
+            return subprocess.check_output(["/usr/bin/git", *args], cwd=checkout, env=environment, stderr=subprocess.DEVNULL)
+        git("init", "-b", "main")
+        git("config", "user.name", "Fixture")
+        git("config", "user.email", "123+fixture@users.noreply.github.com")
+        source = checkout / "fixture"
+        source.write_text("reviewed source")
+        git("add", "fixture")
+        git("-c", "commit.gpgsign=false", "commit", "-m", "Reviewed fixture")
+        reviewed = git("rev-parse", "HEAD").decode().strip()
+        original_blob = git("rev-parse", "HEAD:fixture").decode().strip()
+        source.write_text("replacement source")
+        git("add", "fixture")
+        git("-c", "commit.gpgsign=false", "commit", "-m", "Replacement fixture")
+        replacement = git("rev-parse", "HEAD").decode().strip()
+        replacement_blob = git("rev-parse", "HEAD:fixture").decode().strip()
+        git("update-ref", "refs/heads/main", reviewed)
+        actual_run = release.run
+        for original, substitute in ((reviewed, replacement), (original_blob, replacement_blob)):
+            with self.subTest(object=original):
+                git("replace", original, substitute)
+                self.assertEqual(git("rev-parse", "HEAD").decode().strip(), reviewed)
+                if original == reviewed:
+                    self.assertEqual(git("status", "--porcelain"), b"")
+                with zipfile.ZipFile(io.BytesIO(git("archive", "--format=zip", reviewed))) as handle:
+                    self.assertEqual(handle.read("fixture"), b"replacement source")
+                with zipfile.ZipFile(io.BytesIO(git("--no-replace-objects", "archive", "--format=zip", reviewed))) as handle:
+                    self.assertEqual(handle.read("fixture"), b"reviewed source")
+                calls = []
+                def checked_run(label, *args, **kwargs):
+                    calls.append(label)
+                    if args[0] != "/usr/bin/git":
+                        self.fail("Replacement refs reached credential or build tools")
+                    return actual_run(label, *args, cwd=checkout, **kwargs)
+                with patch.dict(os.environ, environment, clear=True), patch.object(release, "run", side_effect=checked_run):
+                    with self.assertRaisesRegex(RuntimeError, "replacement"):
+                        release.release(self.config, reviewed)
+                self.assertNotIn("Check local signing identity", calls)
+                git("replace", "-d", original)
 
     def test_release_contains_only_final_archive_and_checksum(self):
         self.execute()
