@@ -6,6 +6,8 @@ import os
 import pathlib
 import plistlib
 import re
+import shlex
+import signal
 import subprocess
 import sys
 import tempfile
@@ -63,6 +65,22 @@ def verify(app, config):
         "-R", requirement, str(app))
 
 
+def sign(app, config):
+    original = shlex.split(run("Read keychain search list", "security", "list-keychains", "-d", "user"))
+    if not original:
+        raise RuntimeError("Cannot safely preserve an empty keychain search list.")
+    changed = config["keychain"] not in original
+    try:
+        if changed:
+            run("Enable signing keychain temporarily", "security", "list-keychains", "-d", "user", "-s",
+                config["keychain"], *original)
+        run("Sign using local keychain", "codesign", "--force", "--options", "runtime", "--timestamp",
+            "--keychain", config["keychain"], "--sign", config["identity"], str(app))
+    finally:
+        if changed:
+            run("Restore keychain search list", "security", "list-keychains", "-d", "user", "-s", *original)
+
+
 def release(config, revision):
     clean_revision(revision)
     identities = run("Check local signing identity", "security", "find-identity", "-v", "-p",
@@ -98,8 +116,7 @@ def release(config, revision):
         destination = output / name
         if destination.exists():
             raise RuntimeError("A release for this revision already exists; it will not be overwritten.")
-        run("Sign using local keychain", "codesign", "--force", "--options", "runtime", "--timestamp",
-            "--keychain", config["keychain"], "--sign", config["identity"], str(app))
+        sign(app, config)
         verify(app, config)
         submission = stage / "submission.zip"
         run("Package notarization submission", "ditto", "-c", "-k", "--sequesterRsrc", "--keepParent",
@@ -137,10 +154,16 @@ def main():
     parser.add_argument("--config", type=pathlib.Path, default=ROOT / "private/release.json")
     parser.add_argument("--revision", required=True, help="Full reviewed commit SHA")
     args = parser.parse_args()
+    def interrupted(signum, frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
     try:
         if sys.platform != "darwin" or os.environ.get("GITHUB_ACTIONS") == "true":
             raise RuntimeError("Signing runs locally on macOS, not in GitHub Actions.")
         release(settings(args.config), args.revision)
+    except KeyboardInterrupt:
+        print("Release interrupted; no new release was published.", file=sys.stderr)
+        return 1
     except (RuntimeError, OSError) as error:
         # Never print raw OS errors, which may contain private paths.
         print(str(error) if isinstance(error, RuntimeError) else "Local release file operation failed.", file=sys.stderr)

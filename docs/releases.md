@@ -3,7 +3,11 @@
 GitHub runs credential-free tests and reviews. Signing runs on a trusted Mac,
 not a GitHub runner. The release command uses an existing Developer ID Application
 key and saved notarization credentials. It never exports keys, imports certificates,
-changes the keychain search list, installs the helper or publishes a GitHub release.
+installs the helper or publishes a GitHub release. If needed, it adds the signing
+keychain to the search list only for signing, then restores the original list even
+on signing failure. Do not change keychain settings or run another signing process
+concurrently. Forced termination can prevent cleanup; check the search list after
+force-quitting a release during signing.
 
 ## One-time preparation
 
