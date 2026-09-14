@@ -11,7 +11,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class BuildTests(unittest.TestCase):
-    def assemble(self, signing_fails=False):
+    def assemble(self, signing_fails=False, minimum="13.2", actual="13.2"):
         temporary = tempfile.TemporaryDirectory(prefix="bundle-test-")
         self.addCleanup(temporary.cleanup)
         root = pathlib.Path(temporary.name)
@@ -22,8 +22,10 @@ class BuildTests(unittest.TestCase):
                      "helper/Resources/worklouder_device_bridge.js", "assets/AppIcon.icns"):
             (root / name).write_text("synthetic fixture")
         commands = {
-            "uname": "#!/bin/sh\necho Darwin\n",
-            "swiftc": '#!/bin/sh\nwhile [ "$#" -gt 0 ]; do\nif [ "$1" = -o ]; then shift; printf fixture > "$1"; exit 0; fi\nshift\ndone\nexit 1\n',
+            "uname": '#!/bin/sh\nif [ "$1" = -m ]; then echo arm64; else echo Darwin; fi\n',
+            "plutil": '#!/bin/sh\nprintf "%s\\n" "' + minimum + '"\n',
+            "otool": '#!/bin/sh\nprintf "cmd LC_BUILD_VERSION\\nplatform 1\\nminos %s\\n" "' + actual + '"\n',
+            "swiftc": '#!/bin/sh\nprintf "%s\\n" "$@" > compiler-arguments\nwhile [ "$#" -gt 0 ]; do\nif [ "$1" = -o ]; then shift; printf fixture > "$1"; exit 0; fi\nshift\ndone\nexit 1\n',
             "codesign": "#!/bin/sh\nexit " + ("1" if signing_fails else "0") + "\n",
         }
         for name, body in commands.items():
@@ -51,6 +53,15 @@ class BuildTests(unittest.TestCase):
         recovery = list((root / "build").glob("previous-app.*/Creator Micro AI.app/Contents/Resources/obsolete.fixture"))
         self.assertEqual(len(recovery), 1)
         self.assertEqual(recovery[0].read_text(), "previous build fixture")
+        arguments = (root / "compiler-arguments").read_text().splitlines()
+        self.assertEqual(arguments[arguments.index("-target") + 1], "arm64-apple-macosx13.2")
+
+    def test_wrong_executable_minimum_keeps_existing_bundle(self):
+        root, app, result = self.assemble(actual="26.0")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("minimum macOS version", result.stderr)
+        self.assertEqual((app / "Contents/Resources/obsolete.fixture").read_text(), "previous build fixture")
+        self.assertFalse(list((root / "build").glob("previous-app.*")))
 
     def test_signing_failure_keeps_existing_bundle(self):
         root, app, result = self.assemble(signing_fails=True)

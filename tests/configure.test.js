@@ -35,3 +35,24 @@ test('apply refuses damaged current data before writing',async()=>{
   WLRPCApi:class{async readFileChunked(){return '{broken';}async writeFileChunkedFromStr(){writes++;}}};
  await assert.rejects(configure('--apply',undefined,kit,{log:()=>{}}));assert.equal(writes,0);
 });
+
+for(const command of ['--check','--apply']) for(const macros of [undefined,null,{},'invalid'])
+test(command+' rejects non-array current macros: '+JSON.stringify(macros),async()=>{
+ let writes=0,disconnects=0;
+ const messages=[];
+ const kit={WLDeviceDiscovery:class{findWLDevices(){return [{deviceType:'creator_micro_v2'}];}},
+  WLDeviceCommImpl:class{async connect(){return true;}async disconnect(){disconnects++;}},
+  WLRPCApi:class{async readFileChunked(){return JSON.stringify({version:1,profiles:[],macros});}async writeFileChunkedFromStr(){writes++;}}};
+ await assert.rejects(configure(command,undefined,kit,{log:message=>messages.push(message)}),/INVALID_MACROS/);
+ assert.equal(writes,0);assert.equal(disconnects,1);assert.deepEqual(messages,[]);
+});
+
+test('check accepts both current arrays without writing',async()=>{
+ let writes=0,disconnects=0;
+ const messages=[];
+ const kit={WLDeviceDiscovery:class{findWLDevices(){return [{deviceType:'creator_micro_v2'}];}},
+  WLDeviceCommImpl:class{async connect(){return true;}async disconnect(){disconnects++;}},
+  WLRPCApi:class{async readFileChunked(){return JSON.stringify({version:1,profiles:[],macros:[]});}async writeFileChunkedFromStr(){writes++;}}};
+ await configure('--check',undefined,kit,{log:message=>messages.push(message)});
+ assert.equal(writes,0);assert.equal(disconnects,1);assert.match(messages[0],/Compatible keymap schema/);
+});

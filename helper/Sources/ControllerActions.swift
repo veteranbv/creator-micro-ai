@@ -296,6 +296,19 @@ final class ControllerActions {
         }
     }
     private func perform(_ id: UInt32, app: NSRunningApplication, window: AXUIElement) {
+        let claude = app.bundleIdentifier == "com.anthropic.claudefordesktop"
+        if id == 1 && !claude {
+            // This app-scoped shortcut does not depend on conversation contents.
+            guard let currentWindow = focusedWindow(app), CFEqual(currentWindow, window),
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier else { return }
+            let source = CGEventSource(stateID: .privateState)
+            for down in [true, false] {
+                let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_M), keyDown: down)
+                event?.flags = [.maskControl, .maskShift]
+                event?.postToPid(app.processIdentifier)
+            }
+            return
+        }
         let reads = ControllerAccessibility()
         // Every uniqueness-based selector requires a complete tree.
         guard let all = reads.descendants(window) else {
@@ -303,22 +316,9 @@ final class ControllerActions {
             return
         }
         guard all.count < 5000 else { NSSound.beep(); return }
-        let claude = app.bundleIdentifier == "com.anthropic.claudefordesktop"
         var target: AXUIElement?
         switch id {
         case 1:
-            if !claude {
-                // The app-scoped model-picker shortcut.
-                guard reads.complete, let currentWindow = focusedWindow(app), CFEqual(currentWindow, window),
-                      NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier else { return }
-                let source = CGEventSource(stateID: .privateState)
-                for down in [true, false] {
-                    let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_M), keyDown: down)
-                    event?.flags = [.maskControl, .maskShift]
-                    event?.postToPid(app.processIdentifier)
-                }
-                return
-            }
             target = reads.uniqueControl(in: all, matching: { $0.hasPrefix("Model: ") })
         case 2:
             guard !copyPending else { return }

@@ -26,6 +26,7 @@ async function configure(command, restorePath, kit, options = {}) {
         const current = JSON.parse(before);
         assert.equal(current.version, 1, 'UNSUPPORTED_KEYMAP_VERSION');
         assert.ok(Array.isArray(current.profiles), 'INVALID_PROFILES');
+        assert.ok(Array.isArray(current.macros), 'INVALID_MACROS');
       }
     } catch (error) {
       if (command !== '--restore') throw error;

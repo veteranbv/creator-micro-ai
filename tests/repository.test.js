@@ -87,3 +87,22 @@ test('delayed approval stays bound to the original window and control',()=>{
  const press=source.slice(source.indexOf('private func press'),source.indexOf('private func parent'));
  assert.ok(press.indexOf('CFEqual(currentWindow, window)') < press.indexOf('AXUIElementPerformAction'));
 });
+
+test('fixed model shortcut returns before any conversation traversal',()=>{
+ const source=read('helper/Sources/ControllerActions.swift').split('private func perform')[1];
+ const traversal=source.indexOf('let reads = ControllerAccessibility()');
+ const shortcut=source.slice(0,traversal);
+ assert.match(shortcut,/if id == 1 && !claude/);
+ assert.match(shortcut,/CFEqual\(currentWindow, window\)/);
+ assert.match(shortcut,/frontmostApplication\?\.processIdentifier == app\.processIdentifier/);
+ assert.match(shortcut,/postToPid\(app\.processIdentifier\)/);
+ assert.match(shortcut,/return\s+\}/);
+ assert.doesNotMatch(shortcut,/descendants\(/);
+});
+
+test('bridge errors retain an in-flight activation before canceling its callbacks',()=>{
+ const error=read('helper/Sources/main.swift').split('case "error":')[1].split('default:')[0];
+ assert.match(error,/if activationInProgress \{ layerSelection\.interruptActivation\(\) \}/);
+ assert.ok(error.indexOf('interruptActivation()') < error.indexOf('activationGeneration += 1'));
+ assert.ok(error.indexOf('interruptActivation()') < error.indexOf('activationInProgress = false'));
+});
