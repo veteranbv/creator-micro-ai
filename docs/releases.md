@@ -41,7 +41,8 @@ op run --env-file private/.env -- python3 scripts/release.py --revision FULL_REV
 The release command sends the password through a private stdin pipe to the
 macOS keychain tool, not a command argument. It passes only a small environment
 allowlist to build, test and signing tools. Your existing PATH is preserved;
-signing, keychain, packaging and verification tools use fixed system paths.
+source revision checks and export, signing, keychain, packaging and verification
+tools use fixed system paths.
 1Password tokens and unrelated environment secrets are not forwarded. This
 automation does not change private-key access rules. During one-time setup,
 authorize the system codesign tool for this identity; do not allow all applications.

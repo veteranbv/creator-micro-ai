@@ -77,7 +77,7 @@ class ReleaseTests(unittest.TestCase):
     def test_sensitive_release_tools_use_fixed_system_paths(self):
         with patch.dict(os.environ, {"PATH": "/synthetic/shadow-tools"}):
             self.execute("synthetic")
-        system_tools = {"codesign", "security", "xcrun", "ditto", "lipo", "spctl"}
+        system_tools = {"git", "codesign", "security", "xcrun", "ditto", "lipo", "spctl"}
         for label, args in self.calls:
             tool = pathlib.Path(args[0]).name
             if tool in system_tools:
