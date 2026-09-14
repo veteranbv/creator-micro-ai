@@ -25,7 +25,10 @@ PUBLIC_TLDS = {
 # Schemes establish an authority regardless of host syntax. A bare authority
 # must start at a token boundary, not inside an XML public identifier.
 # Look ahead so an allowed outer URL cannot consume a nested authority.
-URL = re.compile(rb"(?=(\b[a-zA-Z][a-zA-Z0-9+.-]*:/{2}[^\s<>\"']+|(?<![\w+./:-])/{2}(?=[\w%~!$&*+,;=:@.-]|\[[0-9a-fA-FvV:])[^\s<>\"']+))", re.IGNORECASE)
+URL = re.compile(
+    rb"(?=(\b(?:https?|ftp|wss?):[/\\]*[^/\\\s<>\"'][^\s<>\"']*"
+    rb"|\b[a-zA-Z][a-zA-Z0-9+.-]*:/{2}[^\s<>\"']+"
+    rb"|(?<![\w+./:-])/{2}(?=[\w%~!$&*+,;=:@.-]|\[[0-9a-fA-FvV:])[^\s<>\"']+))", re.IGNORECASE)
 # These exact references are files, not hosts. URLs never use this exception.
 FILE_REFERENCES = {
     "README.md", "CONTRIBUTING.md", "PRIVACY.md", "AGENTS.md", "NOTICE.md", "SECURITY.md",
@@ -123,8 +126,11 @@ def content_findings(name, data, *, path_context=False):
         # Only visibly generic secret-reference examples belong in public docs.
         if re.fullmatch(rb"op:/{2}YOUR_[A-Z_]+/YOUR_[A-Z_]+/[a-z-]+", match[1]):
             continue
+        # WHATWG network schemes accept missing or repeated slash/backslash
+        # separators. Normalize those forms before the strict authority parser.
+        address = re.sub(rb"^((?:https?|ftp|wss?):)[/\\]*", rb"\1//", match[1], flags=re.IGNORECASE)
         try:
-            host = urlsplit(match[1].decode()).hostname
+            host = urlsplit(address.replace(b"\\", b"/").decode()).hostname
         except ValueError:
             host = None
         if not host or host.lower() not in ALLOWED_DOMAINS:

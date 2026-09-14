@@ -62,6 +62,18 @@ class PublicationTests(unittest.TestCase):
         for outer in (b"https://github.com/?next=", b"https://github.com/#next="):
             self.assertFalse(content_findings("README.md", outer + b"https://docs.github.com/example"))
 
+    def test_special_network_urls_do_not_require_two_separators(self):
+        for scheme in (b"http:", b"https:", b"ftp:", b"ws:", b"wss:", b"HTTPS:"):
+            for separator in (b"", b"/", b"///", bytes([92]), br"\/", br"\u002f", br"\u005c"):
+                for host in (b"buildserver", b"source" + b".zip", b"[fd00::1]"):
+                    endpoint = scheme + separator + host + b"/private"
+                    with self.subTest(scheme=scheme, separator=separator, host=host):
+                        self.assertTrue(content_findings("fixture.json", endpoint))
+                        self.assertTrue(content_findings("README.md", b"https://github.com/?next=" + endpoint))
+            for separator in (b"", b"/", b"///", bytes([92]), br"\/"):
+                self.assertFalse(content_findings("fixture.json", scheme + separator + b"github.com/example"))
+        self.assertFalse(content_findings("fixture.json", b"https:" + bytes([92]) + b"github.com" + bytes([92]) + b"example"))
+
     def test_staged_archive_is_checked_when_worktree_is_clean_or_missing(self):
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w") as bundle:
