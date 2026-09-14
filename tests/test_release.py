@@ -37,6 +37,8 @@ class ReleaseTests(unittest.TestCase):
             return REVISION
         if label == "Check source cleanliness":
             return " M fixture" if self.dirty else ""
+        if label == "Read keychain search list":
+            return '"/synthetic/login.keychain-db"'
         if label == "Check local signing identity":
             return self.config["identity"] + ' "Developer ID Application: Fixture"' if self.identity else ""
         if label == "Export exact source revision":
@@ -69,6 +71,8 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn("runtime", signing)
         self.assertIn("--timestamp", signing)
         self.assertIn("--keychain", signing)
+        restore = next(args for label, args in self.calls if label == "Restore keychain search list")
+        self.assertEqual(restore[-1], "/synthetic/login.keychain-db")
         self.assertFalse(any("export" in args or "unlock-keychain" in args for _, args in self.calls))
 
     def test_failures_never_leave_a_release_or_temporary_material(self):
@@ -87,6 +91,13 @@ class ReleaseTests(unittest.TestCase):
             self.execute()
         self.assertNotIn("Staple notarization ticket", [label for label, _ in self.calls])
         self.assertEqual(list((self.root / "build/releases").iterdir()), [])
+
+    def test_signing_failure_restores_original_search_list(self):
+        self.failure = "Sign using local keychain"
+        with self.assertRaises(RuntimeError):
+            self.execute()
+        self.assertEqual(self.calls[-1], ("Restore keychain search list",
+                         ("security", "list-keychains", "-d", "user", "-s", "/synthetic/login.keychain-db")))
 
     def test_dirty_source_and_missing_identity_stop_before_signing(self):
         for field in ("dirty", "identity"):
