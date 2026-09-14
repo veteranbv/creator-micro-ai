@@ -48,6 +48,33 @@ def metadata_clean(data):
         return False
 
 
+def icon_entries(data):
+    if len(data) < 8 or data[:4] != b"icns" or struct.unpack_from(">I", data, 4)[0] != len(data):
+        raise ValueError("Invalid ICNS header")
+    offset, entries = 8, []
+    while offset + 8 <= len(data):
+        kind, size = struct.unpack_from(">4sI", data, offset)
+        if size < 8 or offset + size > len(data):
+            raise ValueError("Invalid ICNS entry")
+        entries.append((kind, data[offset + 8:offset + size]))
+        offset += size
+    if offset != len(data) or not entries:
+        raise ValueError("Truncated ICNS")
+    return entries
+
+
+def sanitized_icon(data):
+    entries = [(kind, sanitized(payload) if payload.startswith(SIGNATURE) else payload)
+               for kind, payload in icon_entries(data)]
+    # iconutil can insert metadata again while packaging clean source PNGs.
+    table = b"".join(struct.pack(">4sI", kind, len(payload) + 8)
+                     for kind, payload in entries if kind != b"TOC ")
+    result = b"".join(struct.pack(">4sI", kind, len(payload) + 8) + payload
+                      for kind, payload in [(kind, table if kind == b"TOC " else payload)
+                                            for kind, payload in entries])
+    return b"icns" + struct.pack(">I", len(result) + 8) + result
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
@@ -56,7 +83,10 @@ if __name__ == "__main__":
     assets = pathlib.Path(__file__).resolve().parents[1] / "assets"
     for file in args.files or [assets / "icon.png", assets / "social-card.png"]:
         before = file.read_bytes()
-        after = sanitized(before)
-        assert [raw for kind, raw in chunks(before) if kind in RENDER_CHUNKS] == [raw for _, raw in chunks(after)]
+        if file.suffix.lower() == ".icns":
+            after = sanitized_icon(before)
+        else:
+            after = sanitized(before)
+            assert [raw for kind, raw in chunks(before) if kind in RENDER_CHUNKS] == [raw for _, raw in chunks(after)]
         file.write_bytes(after)
         print(f"Validated artwork metadata: {file.name}")
