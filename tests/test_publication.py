@@ -47,6 +47,10 @@ class PublicationTests(unittest.TestCase):
                         self.assertIn("archive artifact", output.getvalue())
 
     def test_network_authorities_never_use_filename_exemptions(self):
+        for host in ("buildserver", "localhost", "[fd00::1]", "192.0.2.1"):
+            for prefix in ("ssh://", "tcp://", "custom+transport://", "//"):
+                self.assertTrue(content_findings("README.md", (prefix + host + "/private").encode()))
+        self.assertTrue(content_findings("README.md", b"op://" + b"private-vault/item/password"))
         for stem, suffix in (("source", "zip"), ("submission", "zip"), ("release", "py"), ("README", "md")):
             host = stem + "." + suffix
             for prefix in ("ftp://", "ssh://", "tcp://", "custom+transport://", "//"):
