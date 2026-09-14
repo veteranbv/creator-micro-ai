@@ -39,6 +39,22 @@ def findings(path, data):
         issues.append("private local artifact must not be published")
     return issues
 
+def staged_blobs(root):
+    """Read the index, independently of later worktree edits or removals."""
+    try:
+        entries = subprocess.check_output(["git", "ls-files", "--stage", "-z"], cwd=root, stderr=subprocess.DEVNULL)
+        for entry in entries.split(b"\0"):
+            if not entry:
+                continue
+            metadata, raw_name = entry.split(b"\t", 1)
+            mode, oid, stage = metadata.split()
+            if mode not in {b"100644", b"100755"} or stage != b"0":
+                raise ValueError("Git index requires publication review")
+            data = subprocess.check_output(["git", "cat-file", "blob", oid.decode()], cwd=root, stderr=subprocess.DEVNULL)
+            yield raw_name.decode(), data
+    except (OSError, subprocess.CalledProcessError, ValueError) as error:
+        raise ValueError("Git index could not be safely inspected") from error
+
 def main():
     errors = []
     for file in ROOT.rglob("*"):
@@ -53,11 +69,11 @@ def main():
             for issue in findings(relative, file.read_bytes()):
                 errors.append((relative, issue))
     # Ignoring a file does not untrack it. Check the Git index as well.
-    result = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True)
-    if result.returncode == 0:
-        for name in result.stdout.decode().split("\0"):
-            if name:
-                errors.extend((name, issue) for issue in findings(pathlib.Path(name), b""))
+    try:
+        for name, data in staged_blobs(ROOT):
+            errors.extend((name, issue) for issue in findings(pathlib.Path(name), data))
+    except ValueError:
+        errors.append(("Git index", "index inspection failed; publication is blocked"))
     for path, issue in errors:
         print(f"FAIL {path}: {issue}")
     if errors:

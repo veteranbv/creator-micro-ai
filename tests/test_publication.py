@@ -19,6 +19,64 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_staged_archive_is_checked_when_worktree_is_clean_or_missing(self):
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as bundle:
+            bundle.writestr("private/.env", "SYNTHETIC_CREDENTIAL=fixture")
+        with tempfile.TemporaryDirectory(prefix="publication-index-test-") as directory:
+            root = pathlib.Path(directory)
+            env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
+            git("init", "-b", "main")
+            git("config", "user.name", "Fixture")
+            git("config", "user.email", "123+fixture@users.noreply.github.com")
+            git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Clean fixture")
+            file = root / "renamed.bin"
+            file.write_bytes(b"#!/bin/sh\nexit 0\n" + archive.getvalue())
+            git("add", "renamed.bin")
+            file.write_text("Clean working copy")
+            for missing in (False, True):
+                if missing:
+                    file.unlink()
+                for checker in (privacy_check, publication_check):
+                    with self.subTest(missing=missing, checker=checker.__name__):
+                        output = io.StringIO()
+                        with mock.patch.object(checker, "ROOT", root), mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(output):
+                            self.assertEqual(checker.main(), 1)
+                        self.assertIn("archive artifact", output.getvalue())
+
+    def test_network_authorities_never_use_filename_exemptions(self):
+        for stem, suffix in (("source", "zip"), ("submission", "zip"), ("release", "py"), ("README", "md")):
+            host = stem + "." + suffix
+            for prefix in ("ftp://", "ssh://", "tcp://", "custom+transport://", "//"):
+                for authority in (host, "user@" + host + ":443"):
+                    for name in ("README.md", "fixture.py"):
+                        with self.subTest(prefix=prefix, authority=authority, name=name):
+                            self.assertTrue(content_findings(name, ('endpoint = "' + prefix + authority + '/private"').encode()))
+        self.assertFalse(content_findings("README.md", b"[Project](//github.com/example)"))
+        self.assertFalse(content_findings("README.md", b"op://YOUR_VAULT/YOUR_ITEM/password"))
+        self.assertFalse(content_findings("Info.plist", b'PUBLIC "-//Apple//DTD PLIST 1.0//EN"'))
+
+    def test_index_read_failure_blocks_both_checks_without_raw_diagnostics(self):
+        with tempfile.TemporaryDirectory(prefix="publication-index-failure-test-") as directory:
+            for checker in (privacy_check, publication_check):
+                output = io.StringIO()
+                with mock.patch.object(checker, "ROOT", pathlib.Path(directory)), mock.patch.object(checker, "staged_blobs", side_effect=ValueError("SYNTHETIC_PRIVATE_DETAIL")), mock.patch.object(publication_check, "git", return_value=b""), mock.patch.object(sys, "argv", ["check"]), contextlib.redirect_stdout(output):
+                    self.assertEqual(checker.main(), 1)
+                self.assertIn("index inspection failed", output.getvalue())
+                self.assertNotIn("SYNTHETIC_PRIVATE_DETAIL", output.getvalue())
+
+    def test_index_rejects_special_modes_conflicts_and_unreadable_blobs(self):
+        for mode, stage in (("120000", "0"), ("160000", "0"), ("100644", "1")):
+            entry = (mode + " " + "a" * 40 + " " + stage + "\tfixture.bin\0").encode()
+            with mock.patch.object(subprocess, "check_output", return_value=entry), self.assertRaises(ValueError):
+                list(privacy_check.staged_blobs(pathlib.Path(".")))
+        entry = ("100644 " + "a" * 40 + " 0\tfixture.bin\0").encode()
+        failure = subprocess.CalledProcessError(1, ["git"], stderr=b"SYNTHETIC_PRIVATE_DETAIL")
+        with mock.patch.object(subprocess, "check_output", side_effect=[entry, failure]), self.assertRaises(ValueError):
+            list(privacy_check.staged_blobs(pathlib.Path(".")))
+
     def test_new_python_member_exemptions_require_member_access(self):
         for owner, attribute in (("release", "run"), ("download", "name"), ("self", "fail")):
             member = owner + "." + attribute
@@ -263,7 +321,7 @@ class PublicationTests(unittest.TestCase):
                     return b""
                 self.assertEqual(args, ("ls-files", "--cached", "--others", "--exclude-standard", "-z"))
                 return b"new.swift\0"
-            with mock.patch.object(publication_check, "ROOT", root), mock.patch.object(publication_check, "git", git), mock.patch.object(sys, "argv", ["check"]), contextlib.redirect_stdout(io.StringIO()):
+            with mock.patch.object(publication_check, "ROOT", root), mock.patch.object(publication_check, "git", git), mock.patch.object(publication_check, "staged_blobs", return_value=iter(())), mock.patch.object(sys, "argv", ["check"]), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(publication_check.main(), 1)
 
     def test_documented_file_references_are_not_hosts(self):
