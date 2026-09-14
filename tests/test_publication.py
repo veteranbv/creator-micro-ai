@@ -19,16 +19,30 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
-    def test_no_space_source_comment_introductions_are_not_hosts(self):
+    def test_comment_spacing_never_exempts_multiline_string_hosts(self):
         for name in ("fixture.swift", "fixture.js"):
             for comment in (b"/" + b"/TODO: revisit", b"  /" + b"/MARK: Controls", b"/" + b"/explanation of behavior"):
                 with self.subTest(name=name, comment=comment):
-                    self.assertFalse(content_findings(name, comment))
+                    self.assertTrue(content_findings(name, comment))
+                    self.assertFalse(content_findings(name, comment.replace(b"//", b"// ")))
             for endpoint in (b"//" + b"buildserver/private", b"ssh://" + b"buildserver/private"):
                 self.assertTrue(content_findings(name, b"/" + b"/TODO: inspect " + endpoint))
                 self.assertTrue(content_findings(name, b'let endpoint = "' + endpoint + b'"'))
             self.assertTrue(content_findings(name, b'let endpoint = "//' + b'buildserver"'))
         self.assertTrue(content_findings("README.md", b"//" + b"buildserver"))
+        endpoint = b"//" + b"buildserver"
+        self.assertTrue(content_findings("fixture.js", b"const endpoint = `\n" + endpoint + b"\n`;"))
+        self.assertTrue(content_findings("fixture.swift", b'let endpoint = """\n' + endpoint + b'\n"""'))
+
+    def test_serialized_uri_escapes_cannot_use_filename_exemptions(self):
+        for host in (b"buildserver", b"source" + b".zip", b"release" + b".py"):
+            for slash in (br"\/", br"\u002f", br"\u002F", br"\x2f"):
+                for prefix in (b"https:", b"ssh:", b""):
+                    endpoint = prefix + slash * 2 + host + slash + b"private"
+                    with self.subTest(slash=slash, prefix=prefix, host=host):
+                        self.assertTrue(content_findings("fixture.json", b'{"endpoint":"' + endpoint + b'"}'))
+        self.assertFalse(content_findings("fixture.json", br'{"endpoint":"https:\/\/github.com\/example"}'))
+        self.assertFalse(content_findings("fixture.js", br'/https:\/\/github\.com\/example/'))
 
     def test_staged_archive_is_checked_when_worktree_is_clean_or_missing(self):
         archive = io.BytesIO()
