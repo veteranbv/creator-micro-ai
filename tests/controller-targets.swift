@@ -74,6 +74,22 @@ enum ControllerTargetTests {
         }
         check(!ControllerTargetPolicy.isClaudeApprovalName("Deny 1", approve: true), "Y never selects Claude Deny")
         check(!ControllerTargetPolicy.isClaudeApprovalName("Allow once 3", approve: false), "X never selects Claude Allow once")
+        for claude in [false, true] {
+            for approve in [false, true] {
+                let permitted = approve ? "Allow once" : "Deny"
+                check(ControllerTargetPolicy.isApprovalLabels([permitted, "", permitted], claude: claude, approve: approve),
+                      "consistent action labels are accepted")
+                for labels in [[permitted, "Always allow"], [permitted, "Always allow 2"], ["Allow once", "Deny"],
+                               [permitted, "unrecognized action"], [], [""]] {
+                    check(!ControllerTargetPolicy.isApprovalLabels(labels, claude: claude, approve: approve),
+                          "conflicting or unknown approval labels fail closed")
+                }
+            }
+        }
+        check(ControllerTargetPolicy.isApprovalLabels(["Allow once", "Allow once 3"], claude: true, approve: true),
+              "Claude numbered labels still identify the same one-time action")
+        check(!ControllerTargetPolicy.isApprovalLabels(["Allow once", "Allow once 3"], claude: false, approve: true),
+              "Claude numbering is not inferred for ChatGPT")
         func claudeContents(_ requests: [Int]) -> [Int] {
             ControllerTargetPolicy.claudePermissionContents(requests: requests, group: pair.group)
         }
@@ -130,6 +146,8 @@ enum ControllerTargetTests {
         }
         check(complete() == [0, 1, 2, 3, 4], "complete traversal includes the sibling after a permission pair")
         check(complete([4]) == nil, "unreadable sibling cannot hide a conflicting permission card")
+        let copyFromIncompleteTree = complete([4]).flatMap { $0.last }
+        check(copyFromIncompleteTree == nil, "an unreadable newest response cannot select an older Copy target")
         check(complete([0]) == nil, "unreadable window fails closed")
         check(complete(limit: 5) == nil, "traversal budget cannot return a partial candidate list")
         check(ControllerTargetPolicy.childValues(status: .success, values: [Int]()) == [], "empty child array is a leaf")

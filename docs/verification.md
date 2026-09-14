@@ -8,6 +8,8 @@ These tests do not launch the helper, post keyboard events, read clipboard data,
 
 The current review candidate adds fail-closed handling for unreadable approval trees, rejects a control labeled as both approval and denial, prevents superseded app launches from activating, and handles a closed bridge pipe without SIGPIPE termination. Fixtures cover these changes, including a real exited child process. The app-activation check is a source assertion, not a live focus test. These changes have not replaced the physically tested helper below and need a new physical acceptance run before release.
 
+Further review requires every nonempty approval label to identify the same permitted action and aborts Copy when a response tree is unreadable, including Claude toolbar retries. These stricter selectors have synthetic coverage, not new hardware acceptance.
+
 ## Wired verification checkpoint
 
 On 2026-09-13, the tester reported that the installed source build completed the wired 1 → 2 → 3 → 4 → 1 cycle, switching both the foreground app and its selected view. The tester then checked all keys across the wired layers and reported that they worked. These are user-reported physical results, not automated test results.

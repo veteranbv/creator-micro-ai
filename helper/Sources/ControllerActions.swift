@@ -71,6 +71,13 @@ enum ControllerTargetPolicy {
         return names.contains(name)
     }
 
+    static func isApprovalLabels(_ labels: [String], claude: Bool, approve: Bool) -> Bool {
+        let names = labels.filter { !$0.isEmpty }
+        return !names.isEmpty && names.allSatisfy {
+            claude ? isClaudeApprovalName($0, approve: approve) : $0 == (approve ? "Allow once" : "Deny")
+        }
+    }
+
     static func claudePermissionContents<Node>(requests: [Node], group: (Node, Int) -> [Node]?) -> [Node] {
         guard requests.count == 1, let contents = group(requests[0], 101) else { return [] }
         return contents.count < 101 ? contents : []
@@ -159,6 +166,17 @@ final class ControllerActions {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
     private func matches(_ e: AXUIElement, _ names: Set<String>) -> Bool { labels(e).contains { names.contains($0) } }
+    private func approvalLabels(_ element: AXUIElement) -> [String]? {
+        var result: [String] = []
+        for key in [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute] {
+            var raw: CFTypeRef?
+            let status = AXUIElementCopyAttributeValue(element, key as CFString, &raw)
+            if status == .attributeUnsupported || status == .noValue { continue }
+            guard status == .success, let text = raw as? String else { return nil }
+            result.append(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return result
+    }
     private func children(_ element: AXUIElement) -> [AXUIElement]? {
         var raw: CFTypeRef?
         let status = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &raw)
@@ -193,17 +211,20 @@ final class ControllerActions {
         return unsafeBitCast(raw, to: AXUIElement.self)
     }
     private func latestClaudeMessage(_ window: AXUIElement) -> AXUIElement? {
-        descendants(window).reversed().first { element in
-            labels(element).contains(where: ControllerTargetPolicy.isClaudeMessageName)
-                && descendants(element, limit: 1000).contains { labels($0).contains { $0.hasPrefix("Claude responded:") } }
+        guard let nodes = completeDescendants(window) else { return nil }
+        for element in nodes.reversed() where labels(element).contains(where: ControllerTargetPolicy.isClaudeMessageName) {
+            guard let contents = completeDescendants(element, limit: 1000) else { return nil }
+            if contents.contains(where: { labels($0).contains { $0.hasPrefix("Claude responded:") } }) { return element }
         }
+        return nil
     }
     private func claudeCopyControl(_ message: AXUIElement) -> AXUIElement? {
-        let toolbars = descendants(message, limit: 1000).filter {
+        guard let contents = completeDescendants(message, limit: 1000) else { return nil }
+        let toolbars = contents.filter {
             (value($0, kAXRoleAttribute) as? String) == kAXToolbarRole && matches($0, ["Message actions"])
         }
-        guard toolbars.count == 1 else { return nil }
-        let copies = descendants(toolbars[0], limit: 100).filter { actionable($0) && matches($0, ["Copy"]) }
+        guard toolbars.count == 1, let buttons = completeDescendants(toolbars[0], limit: 100) else { return nil }
+        let copies = buttons.filter { actionable($0) && matches($0, ["Copy"]) }
         return copies.count == 1 ? copies[0] : nil
     }
     private func finishCopy(_ success: Bool) {
@@ -230,8 +251,8 @@ final class ControllerActions {
         let root = AXUIElementCreateApplication(app.processIdentifier)
         guard let rawWindow = value(root, kAXFocusedWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID() else { return }
         let window = unsafeBitCast(rawWindow, to: AXUIElement.self)
-        // Approval uniqueness cannot be established from a partially readable window.
-        guard let all = (id == 3 || id == 4) ? completeDescendants(window) : descendants(window) else {
+        // Neither the latest response nor approval uniqueness is known from a partial tree.
+        guard let all = (2...4).contains(id) ? completeDescendants(window) : descendants(window) else {
             NSSound.beep()
             return
         }
@@ -262,9 +283,6 @@ final class ControllerActions {
                 // Include Copied when selecting the latest row so a second tap cannot copy an older response.
                 let isCopy: (AXUIElement) -> Bool = { self.actionable($0) && self.matches($0, ["Copy", "Copied", "Copy response"]) }
                 // Copy's parent can be a flattened turn group.
-                let children: (AXUIElement) -> [AXUIElement] = {
-                    self.value($0, kAXChildrenAttribute) as? [AXUIElement] ?? []
-                }
                 let assistantHeading: (AXUIElement) -> Bool = {
                     (self.value($0, kAXRoleAttribute) as? String) == "AXHeading"
                         && self.labels($0).contains { $0 == "ChatGPT said:" || $0.hasPrefix("ChatGPT said: ") }
@@ -273,13 +291,14 @@ final class ControllerActions {
                     (self.value($0, kAXRoleAttribute) as? String) == "AXHeading"
                         && self.labels($0).contains { $0 == "You said:" || $0.hasPrefix("You said: ") }
                 }
-                let groups = all.filter {
-                    (value($0, kAXRoleAttribute) as? String) == kAXGroupRole
-                        && ControllerTargetPolicy.isOpenAIResponseGroup(value($0, "AXDOMClassList") as? [String] ?? [])
-                        && children($0).contains(where: assistantHeading)
+                var latestChildren: [AXUIElement]?
+                for node in all where (value(node, kAXRoleAttribute) as? String) == kAXGroupRole
+                    && ControllerTargetPolicy.isOpenAIResponseGroup(value(node, "AXDOMClassList") as? [String] ?? []) {
+                    guard let contents = children(node) else { finishCopy(false); return }
+                    if contents.contains(where: assistantHeading) { latestChildren = contents }
                 }
-                if let latest = groups.last {
-                    target = ControllerTargetPolicy.directResponseCopy(children: children(latest),
+                if let latestChildren {
+                    target = ControllerTargetPolicy.directResponseCopy(children: latestChildren,
                         isAssistantHeading: assistantHeading, isUserHeading: userHeading, isCopy: isCopy)
                 }
                 if let candidate = target, matches(candidate, ["Copied"]) { target = nil }
@@ -287,7 +306,8 @@ final class ControllerActions {
                 if let message = latestClaudeMessage(window) {
                     target = claudeCopyControl(message)
                     if target == nil {
-                        let reveal = descendants(message, limit: 1000).filter {
+                        guard let contents = completeDescendants(message, limit: 1000) else { finishCopy(false); return }
+                        let reveal = contents.filter {
                             actionable($0) && labels($0).contains(where: ControllerTargetPolicy.isClaudeActionReveal)
                         }
                         if reveal.count == 1, press(reveal[0], app: app) {
@@ -299,24 +319,17 @@ final class ControllerActions {
                 }
             }
         case 3, 4:
-            let approvals: [AXUIElement]
-            let declines: [AXUIElement]
+            let requestControls: [AXUIElement]
             if claude {
                 // Observed Claude panel: Permission request: run, with numbered action labels.
                 let requests = all.count < 5000 ? all.filter {
                     (value($0, kAXRoleAttribute) as? String) == kAXGroupRole
                         && labels($0).contains { $0.hasPrefix("Permission request: ") }
                 } : []
-                let requestControls = ControllerTargetPolicy.claudePermissionContents(requests: requests,
+                requestControls = ControllerTargetPolicy.claudePermissionContents(requests: requests,
                     group: { self.completeDescendants($0, limit: $1) }).filter(actionable)
-                approvals = requestControls.filter { labels($0).contains {
-                    ControllerTargetPolicy.isClaudeApprovalName($0, approve: true)
-                } }
-                declines = requestControls.filter { labels($0).contains {
-                    ControllerTargetPolicy.isClaudeApprovalName($0, approve: false)
-                } }
             } else {
-                let requestControls = ControllerTargetPolicy.openAIPermissionButtons(nodes: all,
+                requestControls = ControllerTargetPolicy.openAIPermissionButtons(nodes: all,
                     children: children,
                     isGroup: { (self.value($0, kAXRoleAttribute) as? String) == kAXGroupRole },
                     isAlert: {
@@ -333,8 +346,13 @@ final class ControllerActions {
                             && ControllerTargetPolicy.isOpenAIApprovalForm(
                                 self.value($0, "AXDOMClassList") as? [String] ?? [])
                     }, isButton: actionable)
-                approvals = requestControls.filter { matches($0, ["Allow once"]) }
-                declines = requestControls.filter { matches($0, ["Deny"]) }
+            }
+            // Read each label set once so both classifications use the same values.
+            var approvals: [AXUIElement] = [], declines: [AXUIElement] = []
+            for control in requestControls {
+                guard let names = approvalLabels(control) else { NSSound.beep(); return }
+                if ControllerTargetPolicy.isApprovalLabels(names, claude: claude, approve: true) { approvals.append(control) }
+                if ControllerTargetPolicy.isApprovalLabels(names, claude: claude, approve: false) { declines.append(control) }
             }
             target = ControllerTargetPolicy.pairedApproval(approvals: approvals, declines: declines, approve: id == 3,
                 parent: parent, group: { self.completeDescendants($0, limit: $1) }, equal: { CFEqual($0, $1) })
