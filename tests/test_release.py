@@ -74,6 +74,16 @@ class ReleaseTests(unittest.TestCase):
         self.assertLess(labels.index("Build both Mac architectures"), unlock)
         self.assertLess(lock, labels.index("Submit to Apple notarization"))
 
+    def test_sensitive_release_tools_use_fixed_system_paths(self):
+        with patch.dict(os.environ, {"PATH": "/synthetic/shadow-tools"}):
+            self.execute("synthetic")
+        system_tools = {"codesign", "security", "xcrun", "ditto", "lipo", "spctl"}
+        for label, args in self.calls:
+            tool = pathlib.Path(args[0]).name
+            if tool in system_tools:
+                expected = ("/usr/sbin/" if tool == "spctl" else "/usr/bin/") + tool
+                self.assertEqual(args[0], expected, label)
+
     def test_release_contains_only_final_archive_and_checksum(self):
         self.execute()
         directory = next((self.root / "build/releases").iterdir())
@@ -112,7 +122,7 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.execute()
         self.assertEqual(self.calls[-1], ("Restore keychain search list",
-                         ("security", "list-keychains", "-d", "user", "-s", "/synthetic/login.keychain-db")))
+                         ("/usr/bin/security", "list-keychains", "-d", "user", "-s", "/synthetic/login.keychain-db")))
 
     def test_interrupted_signing_restores_original_search_list(self):
         def interrupted(label, *args, **kwargs):

@@ -97,29 +97,29 @@ def verify(app, config):
     requirement = (f'=anchor apple generic and identifier "{BUNDLE_ID}" and '
                    'certificate leaf[field.1.2.840.113635.100.6.1.13] exists and '
                    f'certificate leaf[subject.OU] = "{config["team_id"]}"')
-    run("Verify Developer ID and bundle identity", "codesign", "--verify", "--deep", "--strict",
+    run("Verify Developer ID and bundle identity", "/usr/bin/codesign", "--verify", "--deep", "--strict",
         "-R", requirement, str(app))
 
 
 def sign(app, config):
-    original = shlex.split(run("Read keychain search list", "security", "list-keychains", "-d", "user"))
+    original = shlex.split(run("Read keychain search list", "/usr/bin/security", "list-keychains", "-d", "user"))
     if not original:
         raise RuntimeError("Cannot safely preserve an empty keychain search list.")
     changed = config["keychain"] not in original
     try:
         if changed:
-            run("Enable signing keychain temporarily", "security", "list-keychains", "-d", "user", "-s",
+            run("Enable signing keychain temporarily", "/usr/bin/security", "list-keychains", "-d", "user", "-s",
                 config["keychain"], *original)
-        run("Sign using local keychain", "codesign", "--force", "--options", "runtime", "--timestamp",
+        run("Sign using local keychain", "/usr/bin/codesign", "--force", "--options", "runtime", "--timestamp",
             "--keychain", config["keychain"], "--sign", config["identity"], str(app))
     finally:
         if changed:
-            run("Restore keychain search list", "security", "list-keychains", "-d", "user", "-s", *original)
+            run("Restore keychain search list", "/usr/bin/security", "list-keychains", "-d", "user", "-s", *original)
 
 
 def release(config, revision, password=None):
     clean_revision(revision)
-    identities = run("Check local signing identity", "security", "find-identity", "-v", "-p",
+    identities = run("Check local signing identity", "/usr/bin/security", "find-identity", "-v", "-p",
                      "codesigning", config["keychain"])
     matches = [line for line in identities.splitlines()
                if config["identity"].upper() in line.upper() and '"Developer ID Application:' in line]
@@ -128,7 +128,7 @@ def release(config, revision, password=None):
     auth = ["--keychain-profile", config["notary_profile"]]
     if "notary_keychain" in config:
         auth += ["--keychain", config["notary_keychain"]]
-    run("Check saved notarization credentials", "xcrun", "notarytool", "history", *auth,
+    run("Check saved notarization credentials", "/usr/bin/xcrun", "notarytool", "history", *auth,
         "--output-format", "json", timeout=120)
     run("Run full test suite", "bash", "scripts/test.sh")
     clean_revision(revision)
@@ -157,9 +157,9 @@ def release(config, revision, password=None):
             sign(app, config)
         verify(app, config)
         submission = stage / "submission.zip"
-        run("Package notarization submission", "ditto", "-c", "-k", "--sequesterRsrc", "--keepParent",
+        run("Package notarization submission", "/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent",
             str(app), str(submission))
-        response = run("Submit to Apple notarization", "xcrun", "notarytool", "submit", str(submission),
+        response = run("Submit to Apple notarization", "/usr/bin/xcrun", "notarytool", "submit", str(submission),
                        *auth, "--wait", "--timeout", "15m", "--output-format", "json")
         try:
             accepted = json.loads(response).get("status") == "Accepted"
@@ -167,19 +167,19 @@ def release(config, revision, password=None):
             accepted = False
         if not accepted:
             raise RuntimeError("Apple did not accept this submission. Inspect its history locally; no release was published.")
-        run("Staple notarization ticket", "xcrun", "stapler", "staple", str(app))
+        run("Staple notarization ticket", "/usr/bin/xcrun", "stapler", "staple", str(app))
         package = stage / "package"
         package.mkdir()
         download = package / f"{name}.zip"
-        run("Package stapled app", "ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(download))
+        run("Package stapled app", "/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(download))
         extracted = stage / "verification"
-        run("Extract final download", "ditto", "-x", "-k", str(download), str(extracted))
+        run("Extract final download", "/usr/bin/ditto", "-x", "-k", str(download), str(extracted))
         delivered = extracted / "Creator Micro AI.app"
         verify(delivered, config)
-        run("Verify both delivered architectures", "lipo",
+        run("Verify both delivered architectures", "/usr/bin/lipo",
             str(delivered / "Contents/MacOS/CreatorMicroAI"), "-verify_arch", "arm64", "x86_64")
-        run("Validate delivered ticket", "xcrun", "stapler", "validate", str(delivered))
-        run("Check Gatekeeper", "spctl", "--assess", "--type", "execute", str(delivered))
+        run("Validate delivered ticket", "/usr/bin/xcrun", "stapler", "validate", str(delivered))
+        run("Check Gatekeeper", "/usr/sbin/spctl", "--assess", "--type", "execute", str(delivered))
         digest = hashlib.sha256(download.read_bytes()).hexdigest()
         (package / "SHA256SUMS").write_text(f"{digest}  {download.name}\n")
         package.rename(destination)
