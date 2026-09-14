@@ -15,6 +15,32 @@ import publication_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_credential_artifact_names_are_case_insensitive(self):
+        for suffix in ("pem", "p12", "mobileprovision", "log", "har", "trace"):
+            for variant in (suffix, suffix.upper(), suffix.title()):
+                self.assertIn("private local artifact must not be published",
+                              content_findings("client." + variant, b"\x00\xff"))
+        for name in (".ENV", ".Env.local", ".ENVRC"):
+            self.assertTrue(content_findings(name, b"Generic fixture"))
+
+    def test_commit_display_names_are_scanned_and_redacted(self):
+        for field in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory(prefix="publication-identity-test-") as directory:
+                root = pathlib.Path(directory)
+                env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+                       "GIT_AUTHOR_NAME": "Fixture", "GIT_COMMITTER_NAME": "Fixture",
+                       "GIT_AUTHOR_EMAIL": "123+fixture@users.noreply.github.com",
+                       "GIT_COMMITTER_EMAIL": "123+fixture@users.noreply.github.com"}
+                env[field] = "private-project" + ".ai"
+                subprocess.run(["git", "init", "-b", "main"], cwd=root, env=env, check=True, capture_output=True)
+                subprocess.run(["git", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Public fixture"],
+                               cwd=root, env=env, check=True, capture_output=True)
+                output = io.StringIO()
+                with mock.patch.object(publication_check, "ROOT", root), mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(output):
+                    self.assertEqual(publication_check.main(), 1)
+                self.assertIn("unapproved domain", output.getvalue())
+                self.assertNotIn(env[field], output.getvalue())
+
     def test_paths_are_checked_without_source_expression_exemptions(self):
         for name in ("docs/private-project" + ".ai.txt", "private-project" + ".com/notes.md", "source.name" + ".py", "private-project" + ".com.test.js"):
             self.assertTrue(publication_check.path_findings(name))
@@ -163,6 +189,15 @@ class PublicationTests(unittest.TestCase):
             git("tag", "-a", "clean-fixture", "-m", "Public fixture")
             with mock.patch.object(publication_check, "ROOT", root):
                 self.assertFalse(publication_check.tag_findings())
+            private_tag = "private-project" + ".ai"
+            git("tag", private_tag)
+            with mock.patch.object(publication_check, "ROOT", root):
+                self.assertTrue(publication_check.tag_findings())
+                output = io.StringIO()
+                with mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(output):
+                    self.assertEqual(publication_check.main(), 1)
+                self.assertNotIn(private_tag, output.getvalue())
+            git("tag", "-d", private_tag)
             git("tag", "-a", "fixture", "-m", "private-project" + ".ai")
             with mock.patch.object(publication_check, "ROOT", root):
                 self.assertTrue(publication_check.tag_findings())

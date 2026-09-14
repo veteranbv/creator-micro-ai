@@ -122,8 +122,9 @@ def tree_findings(tree, seen):
 
 def tag_findings():
     issues, seen = [], set()
-    for line in git("for-each-ref", "--format=%(objectname)", "refs/tags").decode().splitlines():
-        oid = line
+    for line in git("for-each-ref", "--format=%(objectname)%00%(refname:strip=2)", "refs/tags").decode().splitlines():
+        oid, name = line.split("\0", 1)
+        issues.extend(("refs/tags/" + name, issue) for issue in path_findings(name))
         while oid not in seen:
             seen.add(oid)
             kind = git("cat-file", "-t", oid).decode().strip()
@@ -166,10 +167,13 @@ def main():
     commits = git("rev-list", "--all" if args.all_history else "HEAD").decode().splitlines()
     seen = set()
     for commit in commits:
-        author, committer, message = git("show", "-s", "--format=%ae%x00%ce%x00%B", commit).decode().split("\0", 2)
+        author, committer, author_name, committer_name, message = git(
+            "show", "-s", "--format=%ae%x00%ce%x00%an%x00%cn%x00%B", commit).decode().split("\0", 4)
         if not identity_allowed(author) or not identity_allowed(committer):
             issues.append((commit[:12], "non-private commit email"))
         issues.extend((commit[:12], issue) for issue in content_findings("commit-message", message.encode()))
+        for name in (author_name, committer_name):
+            issues.extend((commit[:12], issue) for issue in content_findings("commit-identity", name.encode()))
         issues.extend(tree_findings(commit, seen))
     for name, issue in sorted(set(issues)):
         location = "path-sha256:" + hashlib.sha256(name.encode()).hexdigest()[:12] if path_findings(name) else name
