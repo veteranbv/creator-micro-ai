@@ -19,6 +19,18 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_new_python_member_exemptions_require_member_access(self):
+        for owner, attribute in (("release", "run"), ("download", "name"), ("self", "fail")):
+            member = owner + "." + attribute
+            self.assertFalse(content_findings("fixture.py", (member + "()").encode()))
+            self.assertFalse(content_findings("fixture.py", ('label = "é"; ' + member + "()").encode()))
+            for name in ("helper" + ".py", "tests/test_publication.py", "scripts/publication_check.py", "fixture.yaml"):
+                for source in ('socket.connect(("' + member + '", 443))', '# ' + member,
+                               'endpoint = "' + member + '"', 'endpoint = f"' + member + '"',
+                               'endpoint = "https://' + member + '"'):
+                    self.assertTrue(content_findings(name, source.encode()))
+            self.assertTrue(content_findings("fixture.py", (member + "(").encode()))
+
     def test_archives_are_rejected_even_when_renamed_or_only_in_history(self):
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w") as bundle:

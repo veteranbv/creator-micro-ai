@@ -1,5 +1,7 @@
 """Check publication content and Git identities without echoing matched values."""
 import argparse
+import ast
+from ast import Name
 import hashlib
 import pathlib
 import re
@@ -44,7 +46,39 @@ SOURCE_REFERENCES = {
     "release.run", "download.name", "self.fail",
 }
 SOURCE_EXTENSIONS = {".py", ".js", ".swift", ".yml", ".yaml"}
+PYTHON_MEMBERS = {"release.run", "download.name", "self.fail"}
 EMAIL = re.compile(rb"[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
+
+
+def python_member_spans(name, data):
+    if pathlib.Path(name).suffix != ".py":
+        return []
+    try:
+        tree = ast.parse(data)
+    except (SyntaxError, ValueError):
+        return []
+    offsets = [0]
+    for line in data.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    spans = []
+    for node in ast.walk(tree):
+        candidates = [node] if isinstance(node, ast.Attribute) else []
+        # The checker's explicit policy table is data, not a connection endpoint.
+        if name == "scripts/publication_check.py" and isinstance(node, ast.Assign) and isinstance(node.value, ast.Set):
+            if any(isinstance(assignment_target, Name) and assignment_target.id in {"SOURCE_REFERENCES", "PYTHON_MEMBERS"} for assignment_target in node.targets):
+                candidates = [value for value in node.value.elts if isinstance(value, ast.Constant) and value.value in PYTHON_MEMBERS]
+        # Older reviewed fixtures iterate this exact synthetic member table.
+        # Do not exempt other strings or endpoint arguments in the test file.
+        if name == "tests/test_publication.py" and isinstance(node, ast.For) and isinstance(node.iter, ast.Tuple):
+            if all(isinstance(value, ast.Constant) and isinstance(value.value, str) for value in node.iter.elts):
+                if {value.value for value in node.iter.elts} == PYTHON_MEMBERS:
+                    candidates = node.iter.elts
+        for candidate in candidates:
+            start = offsets[candidate.lineno - 1] + candidate.col_offset
+            end = offsets[candidate.end_lineno - 1] + candidate.end_col_offset
+            if isinstance(candidate, ast.Constant) or data[start:end].decode() in PYTHON_MEMBERS:
+                spans.append((start, end))
+    return spans
 
 
 def content_findings(name, data):
@@ -62,6 +96,7 @@ def content_findings(name, data):
         data.decode("utf-8")
     except UnicodeDecodeError:
         return issues  # Binary metadata is reviewed separately, not treated as prose.
+    member_spans = python_member_spans(name, data)
     for match in URL.finditer(data):
         try:
             host = urlsplit(match.group().decode()).hostname
@@ -74,7 +109,10 @@ def content_findings(name, data):
         token = match.group().decode()
         if token in FILE_REFERENCES:
             continue
-        if pathlib.Path(name).suffix in SOURCE_EXTENSIONS and token in SOURCE_REFERENCES:
+        if token in PYTHON_MEMBERS:
+            if any(start <= match.start() and match.end() <= end for start, end in member_spans):
+                continue
+        elif pathlib.Path(name).suffix in SOURCE_EXTENSIONS and token in SOURCE_REFERENCES:
             continue
         if token.rsplit(".", 1)[-1].lower() in PUBLIC_TLDS and token.lower() not in ALLOWED_DOMAINS:
             issues.append("unapproved domain requires publication review")
