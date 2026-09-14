@@ -9,6 +9,7 @@ import tempfile
 import unittest
 import struct
 import zlib
+import zipfile
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
@@ -18,9 +19,37 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_archives_are_rejected_even_when_renamed_or_only_in_history(self):
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as bundle:
+            bundle.writestr("private/.env", "SYNTHETIC_CREDENTIAL=fixture")
+        for name in ("source.zip", "submission.zip", "download" + ".ZIP", "renamed.bin", "tag-blob"):
+            self.assertIn("archive artifact must not be published", content_findings(name, archive.getvalue()))
+        for name in ("source.zip", "submission.zip", "download" + ".ZIP"):
+            self.assertIn("archive artifact must not be published", publication_check.path_findings(name))
+        self.assertFalse(content_findings("fixture.py", b'archive = "source.zip"; upload = "submission.zip"'))
+        with tempfile.TemporaryDirectory(prefix="publication-archive-test-") as directory:
+            root = pathlib.Path(directory)
+            env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
+            git("init", "-b", "main")
+            git("config", "user.name", "Fixture")
+            git("config", "user.email", "123+fixture@users.noreply.github.com")
+            (root / "source.zip").write_bytes(archive.getvalue())
+            git("add", "source.zip")
+            with mock.patch.object(privacy_check, "ROOT", root), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(privacy_check.main(), 1)
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Add archive fixture")
+            git("rm", "source.zip")
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Remove archive fixture")
+            with mock.patch.object(publication_check, "ROOT", root), mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(publication_check.main(), 1)
+
     def test_signing_branch_source_references_are_not_hosts(self):
         for name in ("releases.md", "release.py", "source.zip", "submission.zip"):
             self.assertFalse(content_findings("README.md", name.encode()))
+        for name in ("releases.md", "release.py"):
             self.assertFalse(publication_check.path_findings(name))
         for expression in ("release.run", "download.name", "self.fail"):
             self.assertFalse(content_findings("fixture.py", expression.encode()))
