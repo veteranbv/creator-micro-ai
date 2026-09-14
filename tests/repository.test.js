@@ -49,3 +49,10 @@ test('dictation documentation describes a tool-independent toggle contract',()=>
  assert.match(read('docs/layout.html'),/configure your dictation tool/i);
  assert.doesNotMatch(read('README.md'),/wide key toggles Superwhisper/);
 });
+
+test('app opening cannot activate before the stale-generation guard',()=>{
+ const source=read('helper/Sources/main.swift');
+ assert.match(source,/configuration\.activates = false/);
+ assert.doesNotMatch(source,/configuration\.activates = true/);
+ assert.match(source,/guard generation == activationGeneration else \{ return \}\s+app\.activate/);
+});

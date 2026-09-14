@@ -130,7 +130,8 @@ private func activate(_ mode: WorkspaceMode, completion: @escaping (Bool) -> Voi
         completion(success)
     }
     let configuration = NSWorkspace.OpenConfiguration()
-    configuration.activates = true
+    // A superseded open request must not steal focus before its callback runs.
+    configuration.activates = false
     configuration.addsToRecentItems = false
     NSWorkspace.shared.openApplication(at: mode.appURL, configuration: configuration) { app, error in
         guard error == nil, let app else {

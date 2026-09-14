@@ -12,7 +12,7 @@ if [[ "$(uname -s)" == Darwin ]]; then
   swiftc helper/Sources/HelperHealth.swift tests/helper-health.swift \
     -module-cache-path build/module-cache -o build/tests/helper-health
   build/tests/helper-health
-  swiftc helper/Sources/BridgePipeReader.swift tests/bridge-pipe.swift \
+  swiftc helper/Sources/BridgePipe.swift tests/bridge-pipe.swift \
     -module-cache-path build/module-cache -o build/tests/bridge-pipe
   build/tests/bridge-pipe
   swiftc helper/Sources/ControllerActions.swift tests/controller-targets.swift \

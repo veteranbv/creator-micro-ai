@@ -1,4 +1,5 @@
 import Foundation
+import ApplicationServices
 
 // Standalone fixture runner, matching the existing Swift executable tests.
 // No helper instance, app inspection, hotkeys, clipboard access, or UI events.
@@ -115,6 +116,33 @@ enum ControllerTargetTests {
         check(unrelated.approval([1], [2]) == nil, "oversized shared window is not a request card")
         let disconnected = Tree(children: [0: [1], 3: [4]])
         check(disconnected.approval([1], [4]) == nil, "disconnected controls cannot pair")
+        check(pair.approval([1], [1]) == nil, "Y rejects a single control labeled both Allow once and Deny")
+        check(pair.approval([1], [1], approve: false) == nil, "X rejects a single control labeled both actions")
+        let incompletePair = ControllerTargetPolicy.pairedApproval(approvals: [1], declines: [2], approve: true,
+            parent: { _ in 0 }, group: { _, _ -> [Int]? in nil }, equal: ==)
+        check(incompletePair == nil, "an unreadable pair ancestor cannot establish uniqueness")
+        check(ControllerTargetPolicy.claudePermissionContents(requests: [0], group: { _, _ -> [Int]? in nil }).isEmpty,
+              "unreadable Claude permission contents fail closed")
+        func complete(_ unreadable: Set<Int> = [], limit: Int = 100) -> [Int]? {
+            ControllerTargetPolicy.completeDescendants(0, limit: limit, children: {
+                unreadable.contains($0) ? nil : [0: [1, 4], 1: [2, 3]][$0] ?? []
+            })
+        }
+        check(complete() == [0, 1, 2, 3, 4], "complete traversal includes the sibling after a permission pair")
+        check(complete([4]) == nil, "unreadable sibling cannot hide a conflicting permission card")
+        check(complete([0]) == nil, "unreadable window fails closed")
+        check(complete(limit: 5) == nil, "traversal budget cannot return a partial candidate list")
+        check(ControllerTargetPolicy.childValues(status: .success, values: [Int]()) == [], "empty child array is a leaf")
+        check(ControllerTargetPolicy.childValues(status: .attributeUnsupported, values: [Int]?.none) == [],
+              "unsupported children attribute is a leaf")
+        check(ControllerTargetPolicy.childValues(status: .noValue, values: [Int]?.none) == [],
+              "children attribute without a value is a leaf")
+        for status in [AXError.cannotComplete, .invalidUIElement, .failure, .notImplemented] {
+            check(ControllerTargetPolicy.childValues(status: status, values: [Int]?.none) == nil,
+                  "AX read failures remain distinguishable from leaves")
+        }
+        check(ControllerTargetPolicy.childValues(status: .success, values: [Int]?.none) == nil,
+              "malformed successful children response fails closed")
 
         // Synthetic permission card: alert/header and form/buttons are direct siblings.
         let cardTree = Tree(children: [0: [1, 20], 1: [2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 20: [21, 22]])

@@ -4,6 +4,26 @@ import Carbon
 
 // Selection rules accept plain test trees as well as live accessibility elements.
 enum ControllerTargetPolicy {
+    static func childValues<Node>(status: AXError, values: [Node]?) -> [Node]? {
+        switch status {
+        case .success: return values
+        case .attributeUnsupported, .noValue: return []
+        default: return nil
+        }
+    }
+
+    static func completeDescendants<Node>(_ root: Node, limit: Int,
+        children: (Node) -> [Node]?) -> [Node]? {
+        var result: [Node] = [], stack = [root]
+        while let node = stack.popLast() {
+            guard result.count < limit, let next = children(node) else { return nil }
+            result.append(node)
+            guard result.count + stack.count + next.count < limit else { return nil }
+            stack.append(contentsOf: next.reversed())
+        }
+        return result
+    }
+
     static func isOpenAIResponseGroup(_ classes: [String]) -> Bool {
         Set(["relative", "shrink-0"]).isSubset(of: Set(classes))
     }
@@ -30,13 +50,14 @@ enum ControllerTargetPolicy {
     }
 
     static func pairedApproval<Node>(approvals: [Node], declines: [Node], approve: Bool,
-        parent: (Node) -> Node?, group: (Node, Int) -> [Node], equal: (Node, Node) -> Bool) -> Node? {
-        guard approvals.count == 1, declines.count == 1 else { return nil }
+        parent: (Node) -> Node?, group: (Node, Int) -> [Node]?, equal: (Node, Node) -> Bool) -> Node? {
+        guard approvals.count == 1, declines.count == 1,
+              !equal(approvals[0], declines[0]) else { return nil }
         var ancestor = approvals[0]
         for _ in 0..<4 {
             guard let next = parent(ancestor) else { break }
             ancestor = next
-            let contents = group(ancestor, 101)
+            guard let contents = group(ancestor, 101) else { return nil }
             if contents.count <= 100, contents.contains(where: { equal($0, declines[0]) }) {
                 return approve ? approvals[0] : declines[0]
             }
@@ -50,9 +71,8 @@ enum ControllerTargetPolicy {
         return names.contains(name)
     }
 
-    static func claudePermissionContents<Node>(requests: [Node], group: (Node, Int) -> [Node]) -> [Node] {
-        guard requests.count == 1 else { return [] }
-        let contents = group(requests[0], 101)
+    static func claudePermissionContents<Node>(requests: [Node], group: (Node, Int) -> [Node]?) -> [Node] {
+        guard requests.count == 1, let contents = group(requests[0], 101) else { return [] }
         return contents.count < 101 ? contents : []
     }
 
@@ -139,6 +159,14 @@ final class ControllerActions {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
     private func matches(_ e: AXUIElement, _ names: Set<String>) -> Bool { labels(e).contains { names.contains($0) } }
+    private func children(_ element: AXUIElement) -> [AXUIElement]? {
+        var raw: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &raw)
+        return ControllerTargetPolicy.childValues(status: status, values: raw as? [AXUIElement])
+    }
+    private func completeDescendants(_ root: AXUIElement, limit: Int = 5000) -> [AXUIElement]? {
+        ControllerTargetPolicy.completeDescendants(root, limit: limit, children: children)
+    }
     private func descendants(_ root: AXUIElement, limit: Int = 5000) -> [AXUIElement] {
         var result: [AXUIElement] = [], stack = [root]
         while let e = stack.popLast(), result.count < limit {
@@ -202,7 +230,11 @@ final class ControllerActions {
         let root = AXUIElementCreateApplication(app.processIdentifier)
         guard let rawWindow = value(root, kAXFocusedWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID() else { return }
         let window = unsafeBitCast(rawWindow, to: AXUIElement.self)
-        let all = descendants(window)
+        // Approval uniqueness cannot be established from a partially readable window.
+        guard let all = (id == 3 || id == 4) ? completeDescendants(window) : descendants(window) else {
+            NSSound.beep()
+            return
+        }
         guard all.count < 5000 else { NSSound.beep(); return }
         let controls = all.filter(actionable)
         let claude = app.bundleIdentifier == "com.anthropic.claudefordesktop"
@@ -276,7 +308,7 @@ final class ControllerActions {
                         && labels($0).contains { $0.hasPrefix("Permission request: ") }
                 } : []
                 let requestControls = ControllerTargetPolicy.claudePermissionContents(requests: requests,
-                    group: { self.descendants($0, limit: $1) }).filter(actionable)
+                    group: { self.completeDescendants($0, limit: $1) }).filter(actionable)
                 approvals = requestControls.filter { labels($0).contains {
                     ControllerTargetPolicy.isClaudeApprovalName($0, approve: true)
                 } }
@@ -285,7 +317,7 @@ final class ControllerActions {
                 } }
             } else {
                 let requestControls = ControllerTargetPolicy.openAIPermissionButtons(nodes: all,
-                    children: { self.value($0, kAXChildrenAttribute) as? [AXUIElement] },
+                    children: children,
                     isGroup: { (self.value($0, kAXRoleAttribute) as? String) == kAXGroupRole },
                     isAlert: {
                         (self.value($0, kAXRoleAttribute) as? String) == kAXGroupRole
@@ -305,7 +337,7 @@ final class ControllerActions {
                 declines = requestControls.filter { matches($0, ["Deny"]) }
             }
             target = ControllerTargetPolicy.pairedApproval(approvals: approvals, declines: declines, approve: id == 3,
-                parent: parent, group: { self.descendants($0, limit: $1) }, equal: { CFEqual($0, $1) })
+                parent: parent, group: { self.completeDescendants($0, limit: $1) }, equal: { CFEqual($0, $1) })
         case 5:
             // Both apps label the sidebar control Search, not the settings command name.
             let candidates = controls.filter { matches($0, ["Search"]) }
