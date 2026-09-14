@@ -14,9 +14,40 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
 from publication_check import content_findings, identity_allowed
 import publication_check
+import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_private_directory_paths_are_forbidden_even_for_opaque_files(self):
+        for name in ("private/device-export.bin", "docs/PRIVATE/export.bin", "local/Private/blob.dat"):
+            self.assertIn("private local artifact must not be published", content_findings(name, b"\x00\xff"))
+
+    def test_force_added_private_binary_fails_index_and_history_checks(self):
+        with tempfile.TemporaryDirectory(prefix="publication-private-test-") as directory:
+            root = pathlib.Path(directory)
+            env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
+            git("init", "-b", "main")
+            git("config", "user.name", "Fixture")
+            git("config", "user.email", "123+fixture@users.noreply.github.com")
+            (root / ".gitignore").write_text("private/\n")
+            (root / "private").mkdir()
+            file = root / "private/device-export.bin"
+            file.write_bytes(b"\x00\xff")
+            with mock.patch.object(privacy_check, "ROOT", root), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(privacy_check.main(), 0)
+            git("add", "-f", "private/device-export.bin")
+            # The index guard must reject the path even if its worktree file disappears.
+            file.unlink()
+            with mock.patch.object(privacy_check, "ROOT", root), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(privacy_check.main(), 1)
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Add opaque fixture")
+            git("rm", "--cached", "private/device-export.bin")
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Remove opaque fixture")
+            with mock.patch.object(publication_check, "ROOT", root), mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(publication_check.main(), 1)
+
     def test_backup_directories_are_private_even_with_ordinary_filenames(self):
         for name in ("backups/device-123/keymap.before.json", "docs/BACKUPS/keymap.json", "local/Backup Copy/profile.json"):
             self.assertIn("private local artifact must not be published", content_findings(name, b"{}"))

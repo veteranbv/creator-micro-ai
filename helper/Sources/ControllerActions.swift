@@ -4,10 +4,10 @@ import Carbon
 
 // Selection rules accept plain test trees as well as live accessibility elements.
 enum ControllerTargetPolicy {
-    static func attributeValue<Value>(status: AXError, value: Value?, absent: Value) -> Value? {
+    static func attributeValue<Value>(status: AXError, value: Value?, absent: Value, required: Bool = false) -> Value? {
         switch status {
         case .success: return value
-        case .attributeUnsupported, .noValue: return absent
+        case .attributeUnsupported, .noValue: return required ? nil : absent
         default: return nil
         }
     }
@@ -131,9 +131,9 @@ final class ControllerAccessibility {
         self.copyAttribute = copyAttribute
     }
 
-    func read<Value>(_ element: AXUIElement, _ key: String, absent: Value) -> Value {
+    func read<Value>(_ element: AXUIElement, _ key: String, absent: Value, required: Bool = false) -> Value {
         let (status, raw) = copyAttribute(element, key)
-        guard let result = ControllerTargetPolicy.attributeValue(status: status, value: raw as? Value, absent: absent) else {
+        guard let result = ControllerTargetPolicy.attributeValue(status: status, value: raw as? Value, absent: absent, required: required) else {
             complete = false
             return absent
         }
@@ -148,9 +148,14 @@ final class ControllerAccessibility {
     func matches(_ element: AXUIElement, _ names: Set<String>) -> Bool {
         labels(element).contains { names.contains($0) }
     }
-    func role(_ element: AXUIElement) -> String { read(element, kAXRoleAttribute, absent: "") }
+    func role(_ element: AXUIElement) -> String {
+        let role = read(element, kAXRoleAttribute, absent: "", required: true)
+        if role.isEmpty { complete = false }
+        return role
+    }
     func actionable(_ element: AXUIElement) -> Bool {
-        [kAXButtonRole, kAXPopUpButtonRole].contains(role(element)) && read(element, kAXEnabledAttribute, absent: false)
+        [kAXButtonRole, kAXPopUpButtonRole].contains(role(element))
+            && read(element, kAXEnabledAttribute, absent: false, required: true)
     }
     func children(_ element: AXUIElement) -> [AXUIElement]? {
         let (status, raw) = copyAttribute(element, kAXChildrenAttribute)
