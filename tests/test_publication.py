@@ -127,6 +127,9 @@ class PublicationTests(unittest.TestCase):
         self.assertFalse(content_findings("fixture.swift", b"Darwin.read"))
         self.assertTrue(content_findings("README.md", b"Darwin.read"))
         self.assertTrue(content_findings("fixture.swift", b"https://" + b"Darwin.read"))
+        self.assertFalse(content_findings("fixture.swift", b"reads.read"))
+        self.assertTrue(content_findings("README.md", b"reads.read"))
+        self.assertTrue(content_findings("fixture.swift", b"https://" + b"reads.read"))
 
     def test_untracked_source_is_checked_before_staging(self):
         with tempfile.TemporaryDirectory(prefix="publication-new-test-") as directory:

@@ -2,7 +2,7 @@ import Foundation
 import ApplicationServices
 
 // Standalone fixture runner, matching the existing Swift executable tests.
-// No helper instance, app inspection, hotkeys, clipboard access, or UI events.
+// Attribute reads are injected. No app inspection, hotkeys, clipboard access, or UI events.
 @main
 enum ControllerTargetTests {
     struct Tree {
@@ -28,6 +28,55 @@ enum ControllerTargetTests {
             count += 1
             print("PASS: \(name)")
         }
+        // AX elements are opaque fixture identities; the injected reader never calls macOS.
+        let fixtureNodes = (1...8).map { AXUIElementCreateApplication(pid_t($0)) }
+        func reader(failureNode: Int? = nil, failureKey: String = kAXTitleAttribute,
+                    failure: AXError = .cannotComplete, searchName: String = "Search") -> ControllerAccessibility {
+            ControllerAccessibility { element, key in
+                let index = fixtureNodes.firstIndex { CFEqual($0, element) }!
+                if index == failureNode && key == failureKey { return (failure, nil) }
+                if key == kAXChildrenAttribute {
+                    let tree = [0: [1, 3, 5, 6], 1: [2], 3: [4]]
+                    return (.success, (tree[index] ?? []).map { fixtureNodes[$0] } as CFArray)
+                }
+                if key == kAXTitleAttribute {
+                    let names = [1: "Message 1", 2: "Claude responded: Earlier", 3: "Message 2",
+                                 4: "Claude responded: Latest", 5: searchName, 6: "Other"]
+                    return (.success, (names[index] ?? "") as CFString)
+                }
+                if key == kAXRoleAttribute { return (.success, (index >= 5 ? kAXButtonRole : kAXGroupRole) as CFString) }
+                if key == kAXEnabledAttribute { return (.success, kCFBooleanTrue) }
+                return (.attributeUnsupported, nil)
+            }
+        }
+        let actions = ControllerActions()
+        check(CFEqual(actions.latestClaudeMessage(fixtureNodes[0], using: reader())!, fixtureNodes[3]),
+              "real Copy selector chooses the newest synthetic assistant message")
+        for failedNode in [3, 4] {
+            for key in [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute] {
+                for error in [AXError.cannotComplete, .invalidUIElement, .failure, .success] {
+                    check(actions.latestClaudeMessage(fixtureNodes[0], using: reader(failureNode: failedNode, failureKey: key, failure: error)) == nil,
+                          "unreadable or malformed newest message label never falls back to older response")
+                }
+            }
+        }
+        for name in ["Search", "Model: Example"] {
+            let clean = reader(searchName: name)
+            check(CFEqual(clean.uniqueControl(in: clean.descendants(fixtureNodes[0])!, matching: { $0 == name })!, fixtureNodes[5]),
+                  "complete model/search evidence selects one control")
+            for key in [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute, kAXRoleAttribute, kAXEnabledAttribute] {
+                let broken = reader(failureNode: 6, failureKey: key, searchName: name)
+                check(broken.uniqueControl(in: broken.descendants(fixtureNodes[0])!, matching: { $0 == name }) == nil,
+                      "unreadable competing model/search control cannot establish uniqueness")
+            }
+            let broken = reader(failureNode: 6, failureKey: kAXChildrenAttribute, searchName: name)
+            check(broken.descendants(fixtureNodes[0]) == nil && !broken.complete,
+                  "unreadable model/search subtree cannot establish uniqueness")
+        }
+        let sticky = reader(failureNode: 6)
+        _ = sticky.labels(fixtureNodes[6])
+        _ = sticky.labels(fixtureNodes[5])
+        check(!sticky.complete, "successful later label reads cannot erase an earlier failure")
         for status: AXError in [.cannotComplete, .invalidUIElement, .failure] {
             check(ControllerTargetPolicy.attributeValue(status: status, value: "AXGroup", absent: "") == nil,
                   "attribute error cannot hide a permission container")

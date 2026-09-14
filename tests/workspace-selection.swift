@@ -56,6 +56,18 @@ final class Node {
                 children: { $0 === unreadable ? nil : $0.children }, isRadio: { $0.radio }) == nil)
         }
         let hiddenBranch = Node("", [sidebar])
+        for unreadable in [root, sidebar, mode, chat, code, pane] {
+            precondition(WorkspaceSelection.controls(root: root,
+                labels: { $0 === unreadable ? nil : $0.labels }, children: { $0.children }, isRadio: { $0.radio }) == nil)
+        }
+        let competingSidebar = Node("Sidebar", [mode])
+        precondition(WorkspaceSelection.controls(root: Node("", [sidebar, competingSidebar]),
+            labels: { $0 === competingSidebar ? nil : $0.labels }, children: { $0.children }, isRadio: { $0.radio }) == nil)
+        let competingMode = Node("Mode", [chat, code])
+        sidebar.children = [mode, competingMode]
+        precondition(WorkspaceSelection.controls(root: root,
+            labels: { $0 === competingMode ? nil : $0.labels }, children: { $0.children }, isRadio: { $0.radio }) == nil)
+        sidebar.children = [mode]
         let incompleteWindow = Node("", [sidebar, hiddenBranch])
         precondition(WorkspaceSelection.controls(root: incompleteWindow, labels: { $0.labels },
             children: { $0 === hiddenBranch ? nil : $0.children }, isRadio: { $0.radio }) == nil)

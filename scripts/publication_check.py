@@ -38,7 +38,7 @@ SOURCE_REFERENCES = {
     "pair.group", "twoButtonTree.group", "tree.group", "actions.map", "l.name", "m.id",
     "p.macros.map", "sectors.map", "events.map", "user.email", "user.name",
     "next.map", "controls.chat", "temporary.name", "0.radio", "self.radio",
-    "file.name", "action.properties", "cap.events.click", "cap.properties",
+    "file.name", "action.properties", "cap.events.click", "cap.properties", "reads.read",
     "ids.caps.children.map", "item.events", "item.properties", "item.style", "layer.events.click",
 }
 SOURCE_EXTENSIONS = {".py", ".js", ".swift", ".yml", ".yaml"}
