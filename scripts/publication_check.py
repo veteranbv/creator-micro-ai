@@ -114,13 +114,11 @@ def content_findings(name, data, *, path_context=False):
     except UnicodeDecodeError:
         return issues  # Binary metadata is reviewed separately, not treated as prose.
     member_spans, path_spans = python_reference_spans(name, data)
-    for match in URL.finditer(data):
-        # At the start of a Swift/JS line, a plain word after the comment
-        # delimiter is prose. Keep scanning the rest of that comment for hosts.
-        if pathlib.Path(name).suffix in {".swift", ".js"} and re.fullmatch(rb"/{2}[A-Za-z_][A-Za-z0-9_-]*:?", match.group()):
-            line_start = data.rfind(b"\n", 0, match.start()) + 1
-            if not data[line_start:match.start()].strip():
-                continue
+    # Scan a decoded view for serialized URLs, without changing source offsets.
+    # Be conservative: source comments and multiline strings are not exempt.
+    url_data = re.sub(rb"\\+(?:[/.]|u00([0-9a-fA-F]{2})|x([0-9a-fA-F]{2}))",
+                      lambda m: bytes([int(m[1] or m[2], 16)]) if m[1] or m[2] else m.group()[-1:], data)
+    for match in URL.finditer(url_data):
         # Only visibly generic secret-reference examples belong in public docs.
         if re.fullmatch(rb"op:/{2}YOUR_[A-Z_]+/YOUR_[A-Z_]+/[a-z-]+", match.group()):
             continue
