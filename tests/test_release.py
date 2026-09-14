@@ -218,6 +218,23 @@ class ReleaseTests(unittest.TestCase):
             self.assertTrue(command.call_args.kwargs["start_new_session"])
             self.assertEqual(process.communicate.call_args.kwargs["input"], "synthetic\n")
 
+    def test_xcode_overrides_are_only_forwarded_to_build_scripts(self):
+        environment = {"PATH": "/synthetic/tools", "HOME": "/synthetic/home",
+                       "DEVELOPER_DIR": "/synthetic/developer", "SDKROOT": "/synthetic/sdk",
+                       "TOOLCHAINS": "synthetic", "CREATOR_SIGNING_PASSWORD": "synthetic"}
+        commands = (("/usr/bin/xcrun", "notarytool", "history"),
+                    ("/usr/bin/xcrun", "stapler", "validate", "fixture"),
+                    ("/usr/bin/codesign", "--verify", "fixture"),
+                    ("bash", "scripts/test.sh"), ("bash", "scripts/build.sh", "--universal"))
+        for arguments in commands:
+            with self.subTest(arguments=arguments), patch.dict(os.environ, environment, clear=True), patch.object(release.subprocess, "Popen") as command:
+                process = command.return_value.__enter__.return_value
+                process.communicate.return_value = ("", "")
+                process.returncode = 0
+                release.run("Synthetic tool", *arguments)
+                allowed = ("PATH", "HOME", "DEVELOPER_DIR", "SDKROOT") if arguments[0] == "bash" else ("PATH", "HOME")
+                self.assertEqual(command.call_args.kwargs["env"], {key: environment[key] for key in allowed})
+
     def test_real_cancellation_and_timeout_stop_command_descendants(self):
         def interrupted(signum, frame):
             raise KeyboardInterrupt
