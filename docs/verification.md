@@ -6,9 +6,17 @@ Run `bash scripts/test.sh`. The suite checks device mappings, private bridge mes
 
 These tests do not launch the helper, post keyboard events, read clipboard data, inspect conversations or modify the device. Passing them does not establish hardware compatibility.
 
-The current review candidate adds fail-closed handling for unreadable approval trees, rejects a control labeled as both approval and denial, prevents superseded app launches from activating, and handles a closed bridge pipe without SIGPIPE termination. Fixtures cover these changes, including a real exited child process. The app-activation check is a source assertion, not a live focus test. These changes have not replaced the physically tested helper below and need a new physical acceptance run before release.
+The review candidate adds fail-closed handling for unreadable approval trees, rejects a control labeled as both approval and denial, prevents superseded app launches from activating, and handles a closed bridge pipe without SIGPIPE termination. Fixtures cover these changes, including a real exited child process. The app-activation regression is a source assertion; rapid-launch race conditions were not independently tested live.
 
-Further review requires every nonempty approval label to identify the same permitted action and aborts Copy when a response tree is unreadable, including Claude toolbar retries. Permission-container attribute errors and incomplete workspace child reads also abort selection. These stricter selectors have synthetic coverage, not new hardware acceptance.
+Further review requires every nonempty approval label to identify the same permitted action and aborts Copy when a response tree is unreadable, including Claude toolbar retries. Permission-container attribute errors and incomplete workspace child reads also abort selection. These error cases have synthetic coverage. Normal operation on the updated build was physically tested as recorded below.
+
+## Current USB and Bluetooth acceptance
+
+On 2026-09-14, the tester confirmed successful operation over both USB and Bluetooth on source commit `ed16b6395ee9137750810e1d7a3f4e409bb68b5f`. The confirmation covered the full four-layer app/view cycle and all controls, including Copy response, Y/X approvals, dictation and all joystick directions. These are user-reported physical results, not automated observations.
+
+The installed bundle was verified identical to the build that passed `bash scripts/test.sh`. Its executable SHA-256 is `f9a78d22574612bc1e3a3497c73064a68d871357d353c9a9b8abdfd76c786d8a`. The previous working app was retained privately for recovery. Installation did not rewrite the device profile.
+
+This confirms normal operation on the tested setup, not every failure mode. Exact repetition counts, deliberately missing permissions, multiple simultaneous approval cards, rapid focus changes during approval, and the full version inventory were not separately reported. New runtime fixes after this commit require their own acceptance check; later documentation-only commits do not change the tested executable.
 
 ## Wired verification checkpoint
 
@@ -16,7 +24,7 @@ On 2026-09-13, the tester reported that the installed source build completed the
 
 The tested helper executable has SHA-256 `f0fe11ad1e4fe23c299cddd5badf8ef542c075fa01c646a44e84afae0cc5ceb7`. Its installed bundle matched the locally tested build. Both Accessibility and Input Monitoring returned trusted, and the running bridge received the initial device layer after the helper was launched. Re-adding permissions alone does not launch the helper.
 
-The report did not enumerate repetition counts, negative approval cases, disconnect/recovery checks or the full version inventory. Those detailed checks remain pending below. Bluetooth has not been physically verified.
+This earlier report did not enumerate repetition counts, negative approval cases, disconnect/recovery checks or the full version inventory. The current acceptance record above supersedes its normal-operation coverage.
 
 ## Detailed physical acceptance checklist
 
@@ -27,13 +35,15 @@ Record macOS, Input, firmware, ChatGPT, Claude and dictation-tool versions; dict
 | Test | 1 Codex | 2 ChatGPT | 3 Claude Code | 4 Claude Chat |
 | --- | --- | --- | --- | --- |
 | Layer selects correct foreground view | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
-| Three dictation attempts, one insertion each | Pending | Pending | Pending | Pending |
-| New chat, Escape, @, Backspace, Undo, Shift+Return (⇧ ↵), Submit | Pending | Pending | Pending | Pending |
-| Search and model picker | Pending | Pending | Pending | Pending |
-| Copy latest assistant response, not user/code block | Pending | Pending | Pending | Pending |
-| Y allows once, X denies a harmless permission request | Pending | Pending | Pending | Pending |
+| Dictation start/stop and insertion | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| New chat, Escape, @, Backspace, Undo, Shift+Return (⇧ ↵), Submit | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| Search and model picker | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| Copy response | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| Y allows once, X denies a permission request | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
 | Y/X with no request leave KEEP THIS DRAFT untouched | Pending | Pending | Pending | Pending |
-| Joystick all eight directions and dial rotation/press | Pending | Pending | Pending | Pending |
+| Joystick all eight directions and dial rotation/press | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+
+The pass entries refer to the current acceptance commit above on both transports. Three consecutive dictation attempts with exactly one insertion each, and Copy discrimination between assistant responses, user text and code blocks, still need explicit results.
 
 Test the full 1 → 2 → 3 → 4 → 1 cycle. Confirm both foreground app and selected view at each step, not just device colors. Record switching separately from action-key acceptance; a passing cycle does not verify dictation, Copy or approvals.
 
