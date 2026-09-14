@@ -45,6 +45,8 @@ source revision checks and export, signing, keychain, packaging and verification
 tools use fixed system paths. Only the source test/build scripts receive
 `DEVELOPER_DIR` and `SDKROOT` overrides. Release tools use the system-selected
 Xcode installation, so those overrides cannot redirect notarization or stapling.
+The release checkout must not contain Git replacement references. Source checks
+and export also disable object replacement to preserve the reviewed commit's bytes.
 1Password tokens and unrelated environment secrets are not forwarded. This
 automation does not change private-key access rules. During one-time setup,
 authorize the system codesign tool for this identity; do not allow all applications.
