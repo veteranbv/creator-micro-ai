@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-EXCLUDED = {".git", "build", "__pycache__", "node_modules"}
+EXCLUDED = {".git", "build", "__pycache__", "node_modules", "private"}
 SECRET_PATTERNS = [
     rb"/Users/[A-Za-z0-9_.-]+/", rb"/home/[A-Za-z0-9_.-]+/",
     rb"gh[pousr]_[A-Za-z0-9]{20,}", rb"github_pat_[A-Za-z0-9_]{20,}",
@@ -29,7 +29,7 @@ def findings(path, data):
             issues.append("forbidden runtime capture, logging or network API")
         if path.suffix == ".swift" and re.search(r"\b(print|fputs|NSLog)\s*\(", text):
             issues.append("runtime logging is disabled by policy")
-    if any(part.lower().startswith(".env") or "backup" in part.lower() for part in path.parts) or path.suffix.lower() in {".log", ".har", ".trace", ".pem", ".p12", ".mobileprovision"}:
+    if any(part.lower() == "private" or part.lower().startswith(".env") or "backup" in part.lower() for part in path.parts) or path.suffix.lower() in {".log", ".har", ".trace", ".pem", ".p12", ".mobileprovision"}:
         issues.append("private local artifact must not be published")
     return issues
 
@@ -37,7 +37,7 @@ def main():
     errors = []
     for file in ROOT.rglob("*"):
         relative = file.relative_to(ROOT)
-        if any(part in EXCLUDED for part in relative.parts):
+        if any(part.lower() in EXCLUDED for part in relative.parts):
             continue
         if file.is_symlink():
             errors.append((relative, "symlink requires explicit publication review"))
@@ -48,7 +48,7 @@ def main():
     result = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True)
     if result.returncode == 0:
         for name in result.stdout.decode().split("\0"):
-            if name and any(part in EXCLUDED - {".git"} for part in pathlib.Path(name).parts):
+            if name and any(part.lower() in EXCLUDED - {".git"} for part in pathlib.Path(name).parts):
                 errors.append((name, "generated/private directory is tracked"))
     for path, issue in errors:
         print(f"FAIL {path}: {issue}")

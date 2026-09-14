@@ -77,6 +77,21 @@ enum ControllerTargetTests {
         _ = sticky.labels(fixtureNodes[6])
         _ = sticky.labels(fixtureNodes[5])
         check(!sticky.complete, "successful later label reads cannot erase an earlier failure")
+        for status: AXError in [.attributeUnsupported, .noValue] {
+            for key in [kAXRoleAttribute, kAXEnabledAttribute] {
+                let absent = reader(failureNode: 6, failureKey: key, failure: status)
+                check(absent.uniqueControl(in: absent.descendants(fixtureNodes[0])!, matching: { $0 == "Search" }) == nil,
+                      "missing required role or enabled state cannot hide a competing control")
+            }
+            let missingContainer = reader(failureNode: 0, failureKey: kAXRoleAttribute, failure: status)
+            _ = missingContainer.role(fixtureNodes[0])
+            check(!missingContainer.complete, "missing container role invalidates discovery")
+            check(ControllerTargetPolicy.attributeValue(status: status, value: Optional<String>.none, absent: "", required: true) == nil,
+                  "required attributes reject absent status")
+        }
+        let emptyRole = ControllerAccessibility { _, _ in (.success, "" as CFString) }
+        _ = emptyRole.role(fixtureNodes[0])
+        check(!emptyRole.complete, "empty required role invalidates discovery")
         for status: AXError in [.cannotComplete, .invalidUIElement, .failure] {
             check(ControllerTargetPolicy.attributeValue(status: status, value: "AXGroup", absent: "") == nil,
                   "attribute error cannot hide a permission container")
