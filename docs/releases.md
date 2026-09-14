@@ -19,9 +19,10 @@ password in command history, repository files or GitHub secrets.
 
 For automated local builds, you can instead supply `CREATOR_SIGNING_PASSWORD`
 through a secret manager. Use this only with a dedicated release keychain: the
-command locks that keychain on success, failure or interruption, even if it was
-already unlocked. The password must be nonempty, single-line and no more than
-128 UTF-8 bytes, matching the macOS password prompt limit. Forced termination
+command unlocks it only for signing, then locks it on success, failure or
+interruption, even if it was already unlocked. Tests, compilation and notarization
+run outside that unlock window. The password must be nonempty, single-line and no
+more than 128 UTF-8 bytes, matching the macOS password prompt limit. Forced termination
 can prevent cleanup; lock the dedicated keychain yourself after force-quitting.
 
 For example, put only a secret reference in an ignored `private/.env`:
@@ -91,6 +92,8 @@ failure. A forced process termination can leave temporary files under the ignore
 build directory; these contain no exported keys. Do not upload the entire build folder.
 
 Failures report the failed stage without printing account details or raw tool output.
+Cancellation or timeout kills the active command's process group and waits for the
+child to finish before keychain or temporary-file cleanup begins.
 If notarization fails or times out, inspect `xcrun notarytool history` locally using
 your saved profile. Apple may continue processing a submission after a timeout.
 Do not publish a rejected or unverified artifact.
