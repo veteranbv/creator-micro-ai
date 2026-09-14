@@ -8,7 +8,7 @@ import re
 import subprocess
 from urllib.parse import urlsplit
 
-from privacy_check import findings as privacy_findings
+from privacy_check import findings as privacy_findings, staged_blobs
 from artwork_metadata import metadata_clean, sanitized_icon
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -22,7 +22,9 @@ PUBLIC_TLDS = {
     line.lower() for line in pathlib.Path(__file__).with_name("public-tlds.txt").read_text().splitlines()
     if line and not line.startswith("#")
 } | {"test", "local", "internal", "invalid"}
-URL = re.compile(rb"https?://[^\s<>\"']+", re.IGNORECASE)
+# Dotted authorities also cover non-HTTP and scheme-relative endpoints. Do not
+# mistake XML public identifiers or placeholder secret references for hosts.
+URL = re.compile(rb"https?://[^\s<>\"']+|//[^\s/<>\"']*\.[^\s/<>\"']+", re.IGNORECASE)
 # These exact references are files, not hosts. URLs never use this exception.
 FILE_REFERENCES = {
     "README.md", "CONTRIBUTING.md", "PRIVACY.md", "AGENTS.md", "NOTICE.md", "SECURITY.md",
@@ -221,6 +223,12 @@ def main():
     parser.add_argument("--all-history", action="store_true")
     args = parser.parse_args()
     issues = tag_findings()
+    try:
+        for name, data in staged_blobs(ROOT):
+            issues.extend((name, issue) for issue in path_findings(name))
+            issues.extend((name, issue) for issue in content_findings(name, data))
+    except ValueError:
+        issues.append(("Git index", "index inspection failed; publication is blocked"))
     # Include new source files before staging, but leave ignored private files alone.
     for name in git("ls-files", "--cached", "--others", "--exclude-standard", "-z").decode().split("\0"):
         if not name:
