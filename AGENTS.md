@@ -1,6 +1,6 @@
 # Project instructions
 
-This is a fan-made configuration kit for Work Louder's Creator Micro 2, built on Input. Respect and credit that platform. Do not imply vendor endorsement or redistribute vendor firmware or code. The supplied device photograph may show the real branding and keycaps as a hardware reference. Do not extract those marks into project branding or an asset pack.
+This is a fan-made configuration kit for Work Louder's Creator Micro 2, built on Input. Respect and credit that platform. Do not imply vendor endorsement or redistribute vendor firmware or code. The supplied device photograph may show the real branding and keycaps as a hardware reference. Matching functional keycap illustrations are permitted for the control reference. Do not extract Work Louder logos, wordmarks or other branding into project branding or an asset pack.
 
 - This repository is the canonical development source. Publish only current product behavior and the instructions needed to use or maintain it. Every shipped macro must be assigned to a control.
 - Read README, PRIVACY and docs/gotchas before changing behavior. Inspect actual code and current docs before proposing a fix.

@@ -11,6 +11,7 @@ test('four layers share physical controls and a single dictation switch', () => 
   assert.deepEqual(JSON.parse(p.deviceSpecificConfig).mergedKey, { lineIndex: 3, index: 0, direction: 'right' });
 });
 test('dictation has one balanced 40ms chord, with no paste', () => {
+  assert.equal(p.macros.find(m => m.id === 8).name, 'Dictation');
   const actions = p.macros.find(m => m.id === 8).actions;
   assert.deepEqual(actions.map(a => [a.kc,a.act,a.delay]), [
     ['KC_LCTL',1,40],['KC_LSFT',1,40],['KC_D',1,40],['KC_D',0,40],['KC_LSFT',0,40],['KC_LCTL',0,40]

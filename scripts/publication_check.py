@@ -1,5 +1,6 @@
 """Check publication content and Git identities without echoing matched values."""
 import argparse
+import hashlib
 import pathlib
 import re
 import subprocess
@@ -81,8 +82,42 @@ def identity_allowed(email):
         r"[a-zA-Z0-9+_.-]+@users\.noreply\.github\.com", email))
 
 
+def path_findings(name):
+    # Check each component and dotted prefix so adding .txt cannot hide a host.
+    candidates = [name]
+    for part in pathlib.PurePosixPath(name).parts:
+        pieces = part.split(".")
+        for end in range(1, len(pieces) + 1):
+            candidate = ".".join(pieces[:end])
+            # The test suffix is a source convention, not a hostname. Earlier
+            # prefixes still expose a host embedded before that suffix.
+            if part.endswith(".test.js") and candidate == part[:-3]:
+                continue
+            candidates.append(candidate)
+    return content_findings("repository-path", "\n".join(candidates).encode())
+
+
 def git(*args):
     return subprocess.check_output(["git", *args], cwd=ROOT)
+
+
+def tree_findings(tree, seen):
+    issues = []
+    for entry in git("ls-tree", "-rz", tree).split(b"\0"):
+        if not entry:
+            continue
+        metadata, raw_name = entry.split(b"\t", 1)
+        mode, kind, oid = metadata.decode().split()
+        name = raw_name.decode()
+        issues.extend((name, issue) for issue in path_findings(name))
+        if mode in {"120000", "160000"}:
+            issues.append((name, "symlink or submodule needs publication review"))
+            continue
+        key = (oid, name)
+        if key not in seen:
+            seen.add(key)
+            issues.extend((name, issue) for issue in content_findings(name, git("cat-file", "blob", oid)))
+    return issues
 
 
 def tag_findings():
@@ -107,6 +142,9 @@ def tag_findings():
             elif kind == "blob":
                 issues.extend((oid[:12], issue) for issue in content_findings("tag-blob", git("cat-file", "blob", oid)))
                 break
+            elif kind == "tree":
+                issues.extend(tree_findings(oid, set()))
+                break
             else:
                 break
     return issues
@@ -121,6 +159,7 @@ def main():
     for name in git("ls-files", "--cached", "--others", "--exclude-standard", "-z").decode().split("\0"):
         if not name:
             continue
+        issues.extend((name, issue) for issue in path_findings(name))
         file = ROOT / name
         if file.is_file():
             issues.extend((name, issue) for issue in content_findings(name, file.read_bytes()))
@@ -131,22 +170,10 @@ def main():
         if not identity_allowed(author) or not identity_allowed(committer):
             issues.append((commit[:12], "non-private commit email"))
         issues.extend((commit[:12], issue) for issue in content_findings("commit-message", message.encode()))
-        for entry in git("ls-tree", "-rz", commit).split(b"\0"):
-            if not entry:
-                continue
-            metadata, raw_name = entry.split(b"\t", 1)
-            mode, kind, oid = metadata.decode().split()
-            name = raw_name.decode()
-            if mode in {"120000", "160000"}:
-                issues.append((name, "symlink or submodule needs publication review"))
-                continue
-            key = (oid, name)
-            if key in seen:
-                continue
-            seen.add(key)
-            issues.extend((name, issue) for issue in content_findings(name, git("cat-file", "blob", oid)))
+        issues.extend(tree_findings(commit, seen))
     for name, issue in sorted(set(issues)):
-        print(f"FAIL {name}: {issue}")
+        location = "path-sha256:" + hashlib.sha256(name.encode()).hexdigest()[:12] if path_findings(name) else name
+        print(f"FAIL {location}: {issue}")
     if issues:
         return 1
     print(f"Publication checks passed for {len(commits)} commits. Context and binary metadata still require human review.")

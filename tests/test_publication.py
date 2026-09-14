@@ -15,6 +15,54 @@ import publication_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_paths_are_checked_without_source_expression_exemptions(self):
+        for name in ("docs/private-project" + ".ai.txt", "private-project" + ".com/notes.md", "source.name" + ".py", "private-project" + ".com.test.js"):
+            self.assertTrue(publication_check.path_findings(name))
+        for name in ("README.md", "helper/Sources/main.swift", "scripts/build.sh", "tests/profile.test.js"):
+            self.assertFalse(publication_check.path_findings(name))
+
+    def test_tree_tags_and_historical_paths_are_checked(self):
+        with tempfile.TemporaryDirectory(prefix="publication-tree-test-") as directory:
+            root = pathlib.Path(directory)
+            env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL).decode().strip()
+            git("init", "-b", "main")
+            git("config", "user.name", "Fixture")
+            git("config", "user.email", "123+fixture@users.noreply.github.com")
+            (root / "README.md").write_text("Public fixture")
+            git("add", "README.md")
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Add fixture")
+            private_name = "private-project" + ".ai.txt"
+            (root / private_name).write_text("Public fixture")
+            (root / "notes.md").write_text("private-project" + ".com")
+            git("add", private_name, "notes.md")
+            tree = git("write-tree")
+            git("tag", "tree-fixture", tree)
+            git("tag", "-a", "annotated-tree-fixture", tree, "-m", "Public fixture")
+            # The tagged tree is never committed and no unsafe working file remains.
+            git("restore", "--staged", private_name, "notes.md")
+            (root / private_name).unlink()
+            (root / "notes.md").unlink()
+            with mock.patch.object(publication_check, "ROOT", root):
+                findings = publication_check.tag_findings()
+                self.assertTrue(any(name == private_name for name, _ in findings))
+                self.assertTrue(any(name == "notes.md" for name, _ in findings))
+                output = io.StringIO()
+                with mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(output):
+                    self.assertEqual(publication_check.main(), 1)
+                self.assertNotIn(private_name, output.getvalue())
+                self.assertIn("path-sha256:", output.getvalue())
+            # A private path in commit history is checked even after its removal.
+            (root / private_name).write_text("Public fixture")
+            git("add", private_name)
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Add path fixture")
+            git("rm", private_name)
+            git("-c", "commit.gpgsign=false", "commit", "-m", "Remove path fixture")
+            with mock.patch.object(publication_check, "ROOT", root):
+                findings = publication_check.tree_findings("HEAD~1", set())
+                self.assertTrue(any(name == private_name for name, _ in findings))
+
     def test_unrelated_domain_is_rejected_even_without_url(self):
         self.assertTrue(content_findings("README.md", b"a-private-project" + b".com"))
 
