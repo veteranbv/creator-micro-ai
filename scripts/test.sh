@@ -27,7 +27,7 @@ if [[ "$(uname -s)" == Darwin ]]; then
   swiftc helper/Sources/WorkspaceSelection.swift tests/workspace-selection.swift \
     -module-cache-path build/module-cache -o build/tests/workspace-selection
   build/tests/workspace-selection
-  bash scripts/build.sh
+  bash scripts/build.sh --universal
 else
   echo 'Swift/AppKit tests require macOS. CI runs them in the macOS job.'
 fi
