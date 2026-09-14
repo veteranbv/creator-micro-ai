@@ -5,6 +5,9 @@ import os
 import pathlib
 import plistlib
 import subprocess
+import signal
+import sys
+import time
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -56,9 +59,20 @@ class ReleaseTests(unittest.TestCase):
             return json.dumps({"status": self.status})
         return ""
 
-    def execute(self):
+    def execute(self, password=None):
         with patch.object(release, "ROOT", self.root), patch.object(release, "run", side_effect=self.command):
-            release.release(self.config, REVISION)
+            release.release(self.config, REVISION, password)
+
+    def test_keychain_is_unlocked_only_for_signing(self):
+        self.execute("synthetic")
+        labels = [label for label, _ in self.calls]
+        unlock = labels.index("Unlock dedicated signing keychain")
+        lock = labels.index("Lock dedicated signing keychain")
+        self.assertEqual(labels[unlock:lock + 1], ["Unlock dedicated signing keychain",
+                         "Read keychain search list", "Enable signing keychain temporarily",
+                         "Sign using local keychain", "Restore keychain search list", "Lock dedicated signing keychain"])
+        self.assertLess(labels.index("Build both Mac architectures"), unlock)
+        self.assertLess(lock, labels.index("Submit to Apple notarization"))
 
     def test_release_contains_only_final_archive_and_checksum(self):
         self.execute()
@@ -137,7 +151,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(release.settings(path), self.config)
 
     def test_command_failure_does_not_disclose_raw_diagnostics(self):
-        with patch.object(release.subprocess, "run", side_effect=subprocess.CalledProcessError(
+        with patch.object(release.subprocess, "Popen", side_effect=subprocess.CalledProcessError(
                 1, ["fixture"], stderr="synthetic sensitive diagnostic")):
             with self.assertRaisesRegex(RuntimeError, "Check fixture failed") as caught:
                 release.run("Check fixture", "fixture")
@@ -185,11 +199,46 @@ class ReleaseTests(unittest.TestCase):
         environment = {"PATH": "/synthetic/tools", "HOME": "/synthetic/home", "TMPDIR": "/synthetic/tmp",
                        "CREATOR_SIGNING_PASSWORD": "synthetic", "OP_SERVICE_ACCOUNT_TOKEN": "synthetic",
                        "UNRELATED_SECRET": "synthetic"}
-        with patch.dict(os.environ, environment, clear=True), patch.object(release.subprocess, "run") as command:
+        with patch.dict(os.environ, environment, clear=True), patch.object(release.subprocess, "Popen") as command:
+            process = command.return_value.__enter__.return_value
+            process.communicate.return_value = ("", "")
+            process.returncode = 0
             release.run("Synthetic unlock", "/usr/bin/security", "unlock-keychain", "fixture", input="synthetic\n")
             self.assertEqual(command.call_args.kwargs["env"], {key: environment[key] for key in ("PATH", "HOME", "TMPDIR")})
             self.assertTrue(command.call_args.kwargs["start_new_session"])
-            self.assertEqual(command.call_args.kwargs["input"], "synthetic\n")
+            self.assertEqual(process.communicate.call_args.kwargs["input"], "synthetic\n")
+
+    def test_real_cancellation_and_timeout_stop_command_descendants(self):
+        def interrupted(signum, frame):
+            raise KeyboardInterrupt
+        original_handler = signal.signal(signal.SIGTERM, interrupted)
+        self.addCleanup(signal.signal, signal.SIGTERM, original_handler)
+        grandchild = "import pathlib,sys,time; pathlib.Path(sys.argv[1]).write_text(str(__import__('os').getpid())); time.sleep(60)"
+        child = ("import os,pathlib,signal,subprocess,sys,time; "
+                 "root=pathlib.Path(sys.argv[1]); "
+                 "subprocess.Popen([sys.executable,'-c',sys.argv[2],str(root/'grandchild')]); "
+                 "(root/'child').write_text(str(os.getpid())); "
+                 "\nwhile not (root/'grandchild').exists(): time.sleep(0.01)\n"
+                 "if sys.argv[3]=='interrupt': os.kill(os.getppid(),signal.SIGTERM)\n"
+                 "time.sleep(60)")
+        for mode in ("interrupt", "timeout"):
+            with self.subTest(mode=mode):
+                directory = self.root / mode
+                directory.mkdir()
+                exception = KeyboardInterrupt if mode == "interrupt" else RuntimeError
+                with self.assertRaises(exception):
+                    release.run("Synthetic cancellation", sys.executable, "-c", child,
+                                str(directory), grandchild, mode, input="synthetic\n", timeout=3)
+                for name in ("child", "grandchild"):
+                    pid = (directory / name).read_text()
+                    deadline = time.monotonic() + 5
+                    while True:
+                        state = subprocess.run(["ps", "-o", "stat=", "-p", pid], capture_output=True, text=True).stdout.strip()
+                        if not state or state.startswith("Z"):
+                            break
+                        if time.monotonic() >= deadline:
+                            self.fail("Synthetic descendant survived command cleanup")
+                        time.sleep(0.02)
 
 
 if __name__ == "__main__":

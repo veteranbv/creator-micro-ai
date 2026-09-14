@@ -26,13 +26,23 @@ def run(label, *command, cwd=ROOT, timeout=1200, input=None):
         "DEVELOPER_DIR", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET",
     }}
     try:
-        result = subprocess.run(command, cwd=cwd, capture_output=True, text=True,
-                                timeout=timeout, check=True, env=environment,
-                                input=input, start_new_session=input is not None)
-    except (subprocess.SubprocessError, OSError) as error:
+        with subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
+                              text=True, env=environment, start_new_session=True) as child_process:
+            try:
+                stdout, _ = child_process.communicate(input=input, timeout=timeout)
+            except BaseException:
+                # Stop descendants too, before keychain and temporary-file cleanup.
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(child_process.pid, signal.SIGKILL)
+                child_process.communicate()
+                raise
+            if child_process.returncode:
+                raise subprocess.CalledProcessError(child_process.returncode, command)
+    except (subprocess.SubprocessError, OSError, UnicodeError) as error:
         # Tool diagnostics can contain account names and keychain paths.
         raise RuntimeError(f"{label} failed. Check the local prerequisites; no release was published.") from error
-    return result.stdout
+    return stdout
 
 
 @contextlib.contextmanager
@@ -106,7 +116,7 @@ def sign(app, config):
             run("Restore keychain search list", "security", "list-keychains", "-d", "user", "-s", *original)
 
 
-def release(config, revision):
+def release(config, revision, password=None):
     clean_revision(revision)
     identities = run("Check local signing identity", "security", "find-identity", "-v", "-p",
                      "codesigning", config["keychain"])
@@ -141,7 +151,9 @@ def release(config, revision):
         destination = output / name
         if destination.exists():
             raise RuntimeError("A release for this revision already exists; it will not be overwritten.")
-        sign(app, config)
+        # Compilation and network waits do not need an unlocked private key.
+        with unlocked_keychain(config, password):
+            sign(app, config)
         verify(app, config)
         submission = stage / "submission.zip"
         run("Package notarization submission", "ditto", "-c", "-k", "--sequesterRsrc", "--keepParent",
@@ -187,8 +199,7 @@ def main():
             raise RuntimeError("Signing runs locally on macOS, not in GitHub Actions.")
         password = os.environ.pop("CREATOR_SIGNING_PASSWORD", None)
         config = settings(args.config)
-        with unlocked_keychain(config, password):
-            release(config, args.revision)
+        release(config, args.revision, password)
     except KeyboardInterrupt:
         print("Release interrupted; no new release was published.", file=sys.stderr)
         return 1
