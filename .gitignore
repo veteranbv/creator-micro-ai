@@ -14,6 +14,11 @@ backups/
 *.har
 *.pem
 *.p12
+*.pfx
+*.p8
+*.key
+*.keychain
+*.keychain-db
 *.mobileprovision
 .swift-module-cache/
 private/

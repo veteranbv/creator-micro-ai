@@ -17,6 +17,33 @@ copy in your password manager. This ZIP distribution does not need an Installer
 certificate. Unlock the keychain locally before running a release. Do not put its
 password in command history, repository files or GitHub secrets.
 
+For automated local builds, you can instead supply `CREATOR_SIGNING_PASSWORD`
+through a secret manager. Use this only with a dedicated release keychain: the
+command locks that keychain on success, failure or interruption, even if it was
+already unlocked. The password must be nonempty, single-line and no more than
+128 UTF-8 bytes, matching the macOS password prompt limit. Forced termination
+can prevent cleanup; lock the dedicated keychain yourself after force-quitting.
+
+For example, put only a secret reference in an ignored `private/.env`:
+
+```dotenv
+CREATOR_SIGNING_PASSWORD=op://YOUR_VAULT/YOUR_SIGNING_ITEM/keychain-password
+```
+
+Authenticate the 1Password CLI using your existing account or service-account
+setup outside this checkout. Then run:
+
+```sh
+op run --env-file private/.env -- python3 scripts/release.py --revision FULL_REVIEWED_COMMIT_SHA
+```
+
+The release command sends the password through a private stdin pipe to the
+macOS keychain tool, not a command argument. It passes only a small environment
+allowlist to build, test and signing tools. Your existing PATH is preserved;
+1Password tokens and unrelated environment secrets are not forwarded. This
+automation does not change private-key access rules. During one-time setup,
+authorize the system codesign tool for this identity; do not allow all applications.
+
 Save notarization credentials interactively with `xcrun notarytool store-credentials`.
 Use its secure prompt, not a password argument. Run `xcrun notarytool store-credentials --help`
 for the installed tool's options. The release command uses only the saved profile name.

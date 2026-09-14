@@ -1,6 +1,7 @@
 """Test release orchestration without accessing any real keychain or service."""
 import importlib.util
 import json
+import os
 import pathlib
 import plistlib
 import subprocess
@@ -141,6 +142,54 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Check fixture failed") as caught:
                 release.run("Check fixture", "fixture")
         self.assertNotIn("sensitive", str(caught.exception))
+
+    def test_secret_manager_unlock_uses_stdin_and_relocks_after_failure_or_interrupt(self):
+        for failure in (None, RuntimeError("Synthetic failure"), KeyboardInterrupt()):
+            with self.subTest(failure=type(failure).__name__), patch.object(release, "run") as command:
+                def exercise():
+                    with release.unlocked_keychain(self.config, "synthetic #!$'\\\" password"):
+                        if failure:
+                            raise failure
+                if failure:
+                    with self.assertRaises(type(failure)):
+                        exercise()
+                else:
+                    exercise()
+                self.assertEqual(command.call_count, 2)
+                unlock, lock = command.call_args_list
+                self.assertEqual(unlock.args[1:3], ("/usr/bin/security", "unlock-keychain"))
+                self.assertEqual(unlock.kwargs["input"], "synthetic #!$'\\\" password\n")
+                self.assertNotIn("-p", unlock.args)
+                self.assertEqual(lock.args[2], "lock-keychain")
+
+    def test_invalid_or_failed_unlock_never_starts_release(self):
+        for password in ("", "line\nbreak", "line\rbreak", "null\0byte", "a" * 129, "é" * 65):
+            with patch.object(release, "run") as command, self.assertRaises(RuntimeError):
+                with release.unlocked_keychain(self.config, password):
+                    self.fail("Invalid password entered release")
+            command.assert_not_called()
+        with patch.object(release, "run", side_effect=RuntimeError("Unlock failed")) as command:
+            with self.assertRaises(RuntimeError):
+                with release.unlocked_keychain(self.config, "synthetic"):
+                    self.fail("Failed unlock entered release")
+            self.assertEqual(command.call_count, 2)
+            self.assertEqual(command.call_args.args[2], "lock-keychain")
+
+    def test_manual_unlock_mode_does_not_change_keychain_lock_state(self):
+        with patch.object(release, "run") as command:
+            with release.unlocked_keychain(self.config, None):
+                pass
+        command.assert_not_called()
+
+    def test_child_tools_receive_only_environment_allowlist(self):
+        environment = {"PATH": "/synthetic/tools", "HOME": "/synthetic/home", "TMPDIR": "/synthetic/tmp",
+                       "CREATOR_SIGNING_PASSWORD": "synthetic", "OP_SERVICE_ACCOUNT_TOKEN": "synthetic",
+                       "UNRELATED_SECRET": "synthetic"}
+        with patch.dict(os.environ, environment, clear=True), patch.object(release.subprocess, "run") as command:
+            release.run("Synthetic unlock", "/usr/bin/security", "unlock-keychain", "fixture", input="synthetic\n")
+            self.assertEqual(command.call_args.kwargs["env"], {key: environment[key] for key in ("PATH", "HOME", "TMPDIR")})
+            self.assertTrue(command.call_args.kwargs["start_new_session"])
+            self.assertEqual(command.call_args.kwargs["input"], "synthetic\n")
 
 
 if __name__ == "__main__":
