@@ -56,3 +56,11 @@ test('app opening cannot activate before the stale-generation guard',()=>{
  assert.doesNotMatch(source,/configuration\.activates = true/);
  assert.match(source,/guard generation == activationGeneration else \{ return \}\s+app\.activate/);
 });
+
+test('Copy uses complete traversal before selecting or retrying a response',()=>{
+ const source=read('helper/Sources/ControllerActions.swift');
+ assert.match(source,/\(2\.\.\.4\)\.contains\(id\) \? completeDescendants\(window\)/);
+ const copyHelpers=source.slice(source.indexOf('private func latestClaudeMessage'),source.indexOf('private func perform'));
+ assert.doesNotMatch(copyHelpers,/\bdescendants\(/);
+ assert.match(copyHelpers,/guard let nodes = completeDescendants\(window\) else \{ return nil \}/);
+});
