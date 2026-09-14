@@ -44,6 +44,24 @@ class PublicationTests(unittest.TestCase):
         self.assertFalse(content_findings("fixture.json", br'{"endpoint":"https:\/\/github.com\/example"}'))
         self.assertFalse(content_findings("fixture.js", br'/https:\/\/github\.com\/example/'))
 
+    def test_decoded_backslashes_cannot_hide_authorities(self):
+        for host in (b"buildserver", b"source" + b".zip", b"release" + b".py", b"[fd00::1]"):
+            for backslash in (br"\u005c", br"\u005C", br"\x5c", br"\x5C"):
+                for separators in (backslash + b"/", b"/" + backslash, backslash * 2):
+                    for prefix in (b"https:", b"ssh:", b""):
+                        with self.subTest(host=host, separators=separators, prefix=prefix):
+                            self.assertTrue(content_findings("fixture.json", prefix + separators + host + b"/private"))
+        self.assertFalse(content_findings("fixture.json", b"https:" + br"\u005c/" + b"github.com/example"))
+
+    def test_nested_authorities_are_checked_inside_allowed_urls(self):
+        for host in (b"buildserver", b"source" + b".zip", b"release" + b".py", b"[fd00::1]"):
+            for prefix in (b"https://", b"ssh://", b"//"):
+                for outer in (b"https://github.com/?next=", b"https://github.com/#next="):
+                    with self.subTest(host=host, prefix=prefix, outer=outer):
+                        self.assertTrue(content_findings("README.md", outer + prefix + host + b"/private"))
+        for outer in (b"https://github.com/?next=", b"https://github.com/#next="):
+            self.assertFalse(content_findings("README.md", outer + b"https://docs.github.com/example"))
+
     def test_staged_archive_is_checked_when_worktree_is_clean_or_missing(self):
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w") as bundle:
