@@ -66,6 +66,14 @@ Do not disable system security features.
 
 Verify the complete physical cycle: 1 → 2 → 3 → 4 → 1. Every transition must select the expected app and view. Device color changes alone do not prove that the bridge is connected. If colors change but no app or view changes, check Input Monitoring as well as Accessibility before rewriting the device profile.
 
+## Bluetooth operation
+
+On a Bluetooth-capable device, complete the wired setup first. Disconnect USB and connect the device to this Mac over Bluetooth. Leave the same installed helper running; the tested transition did not require a separate helper, profile or permission reset.
+
+Check that the helper reports both permissions trusted and the device bridge connected. With USB still unplugged, test 1 → 2 → 3 → 4 → 1 and all keys across the layers. Then turn the device off and on, let Bluetooth reconnect, and repeat the cycle.
+
+These checks have user-reported passes on the build in the [verification record](verification.md). Continue using USB for profile configuration: writing the profile over Bluetooth has not been tested. Simultaneous USB/Bluetooth connections, multiple devices and sleep/wake recovery are also unverified.
+
 ## Updating
 
 Quit the helper before updating. Keep a recovery copy of the installed app and your device backup until the new build passes the physical checklist. Move the existing app out of the installation destination before running the installer again. Run only one helper at a time to avoid competing for reserved hotkeys and USB access.
