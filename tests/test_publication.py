@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import struct
+import zlib
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
@@ -15,6 +17,22 @@ import publication_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_backup_directories_are_private_even_with_ordinary_filenames(self):
+        for name in ("backups/device-123/keymap.before.json", "docs/BACKUPS/keymap.json", "local/Backup Copy/profile.json"):
+            self.assertIn("private local artifact must not be published", content_findings(name, b"{}"))
+
+    def test_png_metadata_is_checked_regardless_of_suffix_case(self):
+        def chunk(kind, payload):
+            return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload))
+        start = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
+        end = chunk(b"IDAT", zlib.compress(b"\x00\xff\xff\xff")) + chunk(b"IEND", b"")
+        for suffix in ("png", "PNG", "Png"):
+            name = "docs/assets/device." + suffix
+            self.assertFalse(content_findings(name, start + end))
+            for kind in (b"tEXt", b"eXIf"):
+                self.assertIn("artwork metadata requires sanitization",
+                              content_findings(name, start + chunk(kind, b"Synthetic metadata") + end))
+
     def test_credential_artifact_names_are_case_insensitive(self):
         for suffix in ("pem", "p12", "mobileprovision", "log", "har", "trace"):
             for variant in (suffix, suffix.upper(), suffix.title()):
