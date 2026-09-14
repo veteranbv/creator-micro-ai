@@ -14,6 +14,8 @@ Further review requires every nonempty approval label to identify the same permi
 
 On 2026-09-14, the tester confirmed successful operation over both USB and Bluetooth on source commit `ed16b6395ee9137750810e1d7a3f4e409bb68b5f`. The confirmation covered the full four-layer app/view cycle and all controls, including Copy response, Y/X approvals, dictation and all joystick directions. These are user-reported physical results, not automated observations.
 
+After icon-metadata cleanup, the reachable source-equivalent revision is `3ca8e3e908828691f21a175c5d2f862a9b3ea245`. Only `assets/AppIcon.icns` metadata differs from the original snapshot. The test report and executable hash below identify the original installed build, not a new physical test of the rewritten revision.
+
 The installed bundle was verified identical to the build that passed `bash scripts/test.sh`. Its executable SHA-256 is `f9a78d22574612bc1e3a3497c73064a68d871357d353c9a9b8abdfd76c786d8a`. The previous working app was retained privately for recovery. Installation did not rewrite the device profile.
 
 This confirms normal operation on the tested setup, not every failure mode. Exact repetition counts, deliberately missing permissions, multiple simultaneous approval cards, rapid focus changes during approval, and the full version inventory were not separately reported. New runtime fixes after this commit require their own acceptance check; later documentation-only commits do not change the tested executable.
@@ -35,6 +37,8 @@ This earlier report did not enumerate repetition counts, negative approval cases
 On 2026-09-13, the tester disconnected USB, connected the device over Bluetooth and reported that the four-layer app/view cycle worked. After being asked to check all keys across the layers and repeat the cycle after a device power-off/on and Bluetooth reconnection, the tester reported that everything worked.
 
 This used the same installed helper executable identified above, from source checkpoint `94ae0a3abae72263abe46a607a8f44d5b38e46c9`. No Bluetooth-specific code, profile write, helper replacement or permission change was needed. A runtime check after the transport change found both permissions trusted and device-ready state present. Key behavior and the power-cycle/reconnect result are user-reported, not independently instrumented.
+
+The reachable source-equivalent revision after icon-metadata cleanup is `f632f33d4849d9e36e035474321fd2f7de859844`. Only `assets/AppIcon.icns` metadata differs from that original snapshot; the source files are identical. The historical test still refers to the original installed build.
 
 These results cover the tested device and setup. They do not establish wireless profile writing, simultaneous USB/Bluetooth connections, multiple devices, sleep/wake recovery or compatibility with other firmware and app versions. The detailed negative cases and version inventory below remain incomplete.
 
