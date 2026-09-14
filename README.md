@@ -45,6 +45,8 @@ Superwhisper is my choice for this setup and the tool used in dictation testing.
 
 This is a pre-release, source-built kit. Automated tests cover the profile, action-selection rules, shortcut construction and privacy checks. USB and Bluetooth four-layer switching and all controls have passed user-reported checks on the source build recorded in the [verification checklist](docs/verification.md). Detailed failure/recovery and compatibility checks remain pending.
 
+Bluetooth power-cycle/reconnect testing also has a user-reported pass on the earlier checkpoint recorded there. Follow the [Bluetooth setup steps](docs/setup.md#bluetooth-operation); profile writes remain USB-only until separately tested.
+
 ## Build and test
 
 Use macOS with Xcode Command Line Tools, Node 22 or newer for development tests, and Python 3.10 or newer. No npm install, API key, cloud service or paid AI account is required to build this helper. Target apps and dictation services have their own requirements.

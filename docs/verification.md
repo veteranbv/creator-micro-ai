@@ -30,6 +30,14 @@ The tested helper executable has SHA-256 `f0fe11ad1e4fe23c299cddd5badf8ef542c075
 
 This earlier report did not enumerate repetition counts, negative approval cases, disconnect/recovery checks or the full version inventory. The current acceptance record above supersedes its normal-operation coverage.
 
+## Bluetooth verification checkpoint
+
+On 2026-09-13, the tester disconnected USB, connected the device over Bluetooth and reported that the four-layer app/view cycle worked. After being asked to check all keys across the layers and repeat the cycle after a device power-off/on and Bluetooth reconnection, the tester reported that everything worked.
+
+This used the same installed helper executable identified above, from source checkpoint `94ae0a3abae72263abe46a607a8f44d5b38e46c9`. No Bluetooth-specific code, profile write, helper replacement or permission change was needed. A runtime check after the transport change found both permissions trusted and device-ready state present. Key behavior and the power-cycle/reconnect result are user-reported, not independently instrumented.
+
+These results cover the tested device and setup. They do not establish wireless profile writing, simultaneous USB/Bluetooth connections, multiple devices, sleep/wake recovery or compatibility with other firmware and app versions. The detailed negative cases and version inventory below remain incomplete.
+
 ## Detailed physical acceptance checklist
 
 Complete this checklist on the source build you intend to use. Do not mark a row complete from unit tests or results from a different build.
