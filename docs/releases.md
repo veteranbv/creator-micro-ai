@@ -52,6 +52,10 @@ system JSON test tool at `/usr/bin/jq`. Missing tools stop the release; it does 
 fall back to similarly named tools on PATH. No shell startup files are edited.
 The release checkout must not contain Git replacement references. Source checks
 and export also disable object replacement to preserve the reviewed commit's bytes.
+Before extraction or compilation, the source archive's file paths and Git blob IDs
+must match the reviewed tree. Missing, added, duplicate or rewritten files stop the
+release, including changes caused by local or configured Git export attributes.
+No Git attributes or user settings are changed by this check.
 1Password tokens and unrelated environment secrets are not forwarded. This
 automation does not change private-key access rules. During one-time setup,
 authorize the system codesign tool for this identity; do not allow all applications.
