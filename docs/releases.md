@@ -40,11 +40,16 @@ op run --env-file private/.env -- python3 scripts/release.py --revision FULL_REV
 
 The release command sends the password through a private stdin pipe to the
 macOS keychain tool, not a command argument. It passes only a small environment
-allowlist to build, test and signing tools. Your existing PATH is preserved;
-source revision checks and export, signing, keychain, packaging and verification
-tools use fixed system paths. Only the source test/build scripts receive
-`DEVELOPER_DIR` and `SDKROOT` overrides. Release tools use the system-selected
-Xcode installation, so those overrides cannot redirect notarization or stapling.
+allowlist to build, test and signing tools. Your existing PATH is preserved without
+rewriting it, even for child processes. System utilities use absolute paths. The
+compiler and its external tools come from the system-selected Xcode installation.
+Release children do not receive `DEVELOPER_DIR`, `SDKROOT` or `TOOLCHAINS` overrides.
+This does not change the global Xcode selection or ordinary development overrides.
+The full test suite uses the configured absolute Node path and the same Python
+interpreter that launched the release. Use a trusted Python 3.10 or newer and verify
+the configured Node installation locally. The signing Mac must also provide the
+system JSON test tool at `/usr/bin/jq`. Missing tools stop the release; it does not
+fall back to similarly named tools on PATH. No shell startup files are edited.
 The release checkout must not contain Git replacement references. Source checks
 and export also disable object replacement to preserve the reviewed commit's bytes.
 1Password tokens and unrelated environment secrets are not forwarded. This
@@ -62,7 +67,8 @@ Create an ignored `private/release.json` file on the signing Mac:
   "identity": "CERTIFICATE_SHA1_FINGERPRINT",
   "team_id": "APPLE_TEAM_ID",
   "keychain": "~/Library/Keychains/release.keychain-db",
-  "notary_profile": "release-notary"
+  "notary_profile": "release-notary",
+  "node": "/absolute/path/to/trusted/node"
 }
 ```
 
@@ -70,7 +76,10 @@ Replace the placeholders with your local values. Find the certificate fingerprin
 using `security find-identity -v -p codesigning` with your keychain path.
 The identity must be Developer ID Application, not an ad-hoc or development identity.
 If the notarization profile is in a separate keychain, add `notary_keychain` with its
-path. Do not add passwords or API keys to this file. Unknown fields are rejected.
+path. Set `node` to your verified Node 22 or newer executable. Its absolute path is
+local configuration, not a path to copy from another Mac. Existing release settings
+need this field before their next build. Do not add passwords or API keys to this
+file. Unknown fields are rejected.
 
 Your certificate's developer name and team identifier are public in a signed app.
 The private key and notarization credentials remain in local keychains. Notarization

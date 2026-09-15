@@ -1,7 +1,6 @@
 """Exercise bundle assembly with synthetic compiler and signing commands."""
 import os
 import pathlib
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -11,17 +10,28 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class BuildTests(unittest.TestCase):
+    def test_production_build_uses_explicit_tools_without_path_rewrites(self):
+        script = (ROOT / "scripts/build.sh").read_text()
+        for tool in ("dirname", "uname", "mktemp", "plutil", "xcrun", "otool", "awk", "lipo", "codesign"):
+            self.assertIn("/usr/bin/" + tool + " ", script)
+        for tool in ("mkdir", "cp", "rm", "mv", "rmdir"):
+            self.assertIn("/bin/" + tool + " ", script)
+        self.assertIn('"$compiler"', script)
+        self.assertIn('-tools-directory "${compiler%/*}"', script)
+        self.assertNotRegex(script, r"\bPATH\s*=")
+
     def assemble(self, signing_fails=False, minimum="13.2", actual="13.2", universal=False):
         temporary = tempfile.TemporaryDirectory(prefix="bundle-test-")
         self.addCleanup(temporary.cleanup)
         root = pathlib.Path(temporary.name)
         for directory in ("scripts", "helper/Sources", "helper/Resources", "assets", "bin"):
             (root / directory).mkdir(parents=True)
-        shutil.copyfile(ROOT / "scripts/build.sh", root / "scripts/build.sh")
+        script = (ROOT / "scripts/build.sh").read_text()
         for name in ("helper/Sources/main.swift", "helper/Info.plist",
                      "helper/Resources/worklouder_device_bridge.js", "assets/AppIcon.icns"):
             (root / name).write_text("synthetic fixture")
         commands = {
+            "xcrun": '#!/bin/sh\nif [ "$1" = --sdk ]; then printf "%s/sdk\\n" "$PWD"; else printf "%s/bin/swiftc\\n" "$PWD"; fi\n',
             "uname": '#!/bin/sh\nif [ "$1" = -m ]; then echo arm64; else echo Darwin; fi\n',
             "plutil": '#!/bin/sh\nprintf "%s\\n" "' + minimum + '"\n',
             "otool": '#!/bin/sh\nprintf "cmd LC_BUILD_VERSION\\nplatform 1\\nminos %s\\n" "' + actual + '"\n',
@@ -33,13 +43,16 @@ class BuildTests(unittest.TestCase):
             command = root / "bin" / name
             command.write_text(body)
             command.chmod(0o755)
+            # Substitute only the fixture copy; production has no tool override.
+            script = script.replace("/usr/bin/" + name, str(command))
+        (root / "scripts/build.sh").write_text(script)
         app = root / "build/Creator Micro AI.app"
         stale = app / "Contents/Resources/obsolete.fixture"
         stale.parent.mkdir(parents=True)
         stale.write_text("previous build fixture")
         result = subprocess.run(
-            ["bash", "scripts/build.sh"] + (["--universal"] if universal else []), cwd=root,
-            env={**os.environ, "PATH": str(root / "bin") + os.pathsep + os.environ["PATH"]},
+            ["/bin/bash", "scripts/build.sh"] + (["--universal"] if universal else []), cwd=root,
+            env=os.environ.copy(),
             capture_output=True, text=True,
         )
         return root, app, result
@@ -68,6 +81,8 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(recovery[0].read_text(), "previous build fixture")
         arguments = (root / "compiler-arguments").read_text().splitlines()
         self.assertEqual(arguments[arguments.index("-target") + 1], "arm64-apple-macosx13.2")
+        self.assertEqual(pathlib.Path(arguments[arguments.index("-tools-directory") + 1]), (root / "bin").resolve())
+        self.assertEqual(pathlib.Path(arguments[arguments.index("-sdk") + 1]), (root / "sdk").resolve())
 
     def test_wrong_executable_minimum_keeps_existing_bundle(self):
         root, app, result = self.assemble(actual="26.0")

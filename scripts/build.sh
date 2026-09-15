@@ -1,27 +1,30 @@
 #!/bin/bash
 set -euo pipefail
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="$(cd "$(/usr/bin/dirname "$0")/.." && pwd)"
 universal=false
 if [[ $# == 1 && "$1" == --universal ]]; then universal=true
 elif [[ $# != 0 ]]; then echo 'Usage: bash scripts/build.sh [--universal]' >&2; exit 1; fi
-if [[ "$(uname -s)" != Darwin ]]; then echo 'Building the helper requires macOS.' >&2; exit 1; fi
+if [[ "$(/usr/bin/uname -s)" != Darwin ]]; then echo 'Building the helper requires macOS.' >&2; exit 1; fi
 build="$root/build"
 destination="$build/Creator Micro AI.app"
-mkdir -p "$build/module-cache"
-staging=$(mktemp -d "$build/app.XXXXXX")
+/bin/mkdir -p "$build/module-cache"
+staging=$(/usr/bin/mktemp -d "$build/app.XXXXXX")
 app="$staging/Creator Micro AI.app"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-minimum=$(plutil -extract LSMinimumSystemVersion raw -o - "$root/helper/Info.plist")
-architectures=("$(uname -m)")
+/bin/mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+minimum=$(/usr/bin/plutil -extract LSMinimumSystemVersion raw -o - "$root/helper/Info.plist")
+architectures=("$(/usr/bin/uname -m)")
 if [[ "$universal" == true ]]; then architectures=(arm64 x86_64); fi
+compiler=$(/usr/bin/xcrun --find swiftc)
+sdk=$(/usr/bin/xcrun --sdk macosx --show-sdk-path)
 binaries=()
 for architecture in "${architectures[@]}"; do
   binary="$staging/CreatorMicroAI-$architecture"
-  CLANG_MODULE_CACHE_PATH="$build/module-cache" swiftc "$root"/helper/Sources/*.swift \
+  CLANG_MODULE_CACHE_PATH="$build/module-cache" "$compiler" "$root"/helper/Sources/*.swift \
     -target "${architecture}-apple-macosx${minimum}" \
+    -tools-directory "${compiler%/*}" -sdk "$sdk" \
     -module-cache-path "$build/module-cache" -framework Carbon -framework AppKit \
     -framework ApplicationServices -o "$binary"
-  actual=$(otool -l "$binary" | awk '$1 == "minos" { print $2 }')
+  actual=$(/usr/bin/otool -l "$binary" | /usr/bin/awk '$1 == "minos" { print $2 }')
   if [[ "$actual" != "$minimum" ]]; then
     echo 'Executable minimum macOS version does not match the app manifest.' >&2
     exit 1
@@ -29,22 +32,22 @@ for architecture in "${architectures[@]}"; do
   binaries+=("$binary")
 done
 if [[ "$universal" == true ]]; then
-  lipo -create "${binaries[@]}" -output "$app/Contents/MacOS/CreatorMicroAI"
-  lipo "$app/Contents/MacOS/CreatorMicroAI" -verify_arch arm64 x86_64
+  /usr/bin/lipo -create "${binaries[@]}" -output "$app/Contents/MacOS/CreatorMicroAI"
+  /usr/bin/lipo "$app/Contents/MacOS/CreatorMicroAI" -verify_arch arm64 x86_64
 else
-  cp "${binaries[0]}" "$app/Contents/MacOS/CreatorMicroAI"
+  /bin/cp "${binaries[0]}" "$app/Contents/MacOS/CreatorMicroAI"
 fi
-rm "${binaries[@]}"
-cp "$root/helper/Info.plist" "$app/Contents/Info.plist"
-cp "$root/helper/Resources/worklouder_device_bridge.js" "$app/Contents/Resources/"
-cp "$root/assets/AppIcon.icns" "$app/Contents/Resources/"
-codesign --force --sign - "$app"
-codesign --verify --deep --strict "$app"
+/bin/rm "${binaries[@]}"
+/bin/cp "$root/helper/Info.plist" "$app/Contents/Info.plist"
+/bin/cp "$root/helper/Resources/worklouder_device_bridge.js" "$app/Contents/Resources/"
+/bin/cp "$root/assets/AppIcon.icns" "$app/Contents/Resources/"
+/usr/bin/codesign --force --sign - "$app"
+/usr/bin/codesign --verify --deep --strict "$app"
 if [[ -e "$destination" || -L "$destination" ]]; then
-  recovery=$(mktemp -d "$build/previous-app.XXXXXX")
-  mv "$destination" "$recovery/Creator Micro AI.app"
+  recovery=$(/usr/bin/mktemp -d "$build/previous-app.XXXXXX")
+  /bin/mv "$destination" "$recovery/Creator Micro AI.app"
 fi
-mv "$app" "$destination"
-rmdir "$staging"
+/bin/mv "$app" "$destination"
+/bin/rmdir "$staging"
 echo "Built and ad-hoc signed: $destination"
 echo 'No app was launched and no device or Accessibility settings were changed.'
