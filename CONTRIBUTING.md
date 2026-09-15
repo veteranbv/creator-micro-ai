@@ -13,13 +13,16 @@ Do not submit screenshots of private conversations, production credentials, loca
 Put a space after `//` in source comments, including `// TODO:` and `// MARK:`.
 The publication scanner treats ambiguous no-space text as a possible address,
 even inside source files. It does not infer comments from line position or skip
-multiline strings. The URL scan uses one conservative escape-decoding pass:
+multiline strings. The URL scan uses bounded, non-recursive escape decoding:
 byte hex escapes, ASCII fixed-width or braced Unicode escapes, JavaScript legacy
 octal escapes, short control escapes, ASCII identity escapes and escaped line
 continuations. Repeated backslashes before numeric escapes are accepted for
 serialized text. Repeated backslashes before a plain hostname or IPv6 address
 become two URL separators without consuming the host's first character. A complete
-hostname takes precedence even when its prefix looks like a numeric escape. Malformed
+hostname is preserved even when its prefix looks like a numeric escape. A second
+interpretation prioritizes numeric escapes, so serialized dots cannot silently
+extend an allowed hostname. Both interpretations are checked independently;
+neither feeds into the other. Malformed
 numeric values and non-ASCII Unicode values are not decoded. Decoded backslashes
 count as URL separators, not a request to decode another layer. Nested URLs are
 checked independently. HTTP, HTTPS, FTP, WS and WSS addresses are checked even

@@ -110,14 +110,15 @@ def python_reference_spans(name, data):
     return member_spans, path_spans, url_pattern_spans
 
 
-def url_scan_view(data):
+def url_scan_view(data, *, numeric_first=False):
     """Decode one conservative escape layer without evaluating source code."""
-    escapes = re.compile(
-        rb"(?P<separators>\\{2,})(?=[A-Za-z0-9_.~-]+(?:[/\s<>\"'?#:]|$)|\[[0-9a-fA-FvV:.]+\])"
-        rb"|\\+(?:u00(?P<unicode>[0-7][0-9a-fA-F])|x(?P<hex>[0-9a-fA-F]{2})|u\{0*(?P<braced>[0-7]?[0-9a-fA-F])\}"
+    separators = rb"(?P<separators>\\{2,})(?=[A-Za-z0-9_.~-]+(?:[/\s<>\"'?#:]|$)|\[[0-9a-fA-FvV:.]+\])"
+    numeric = (
+        rb"\\+(?:u00(?P<unicode>[0-7][0-9a-fA-F])|x(?P<hex>[0-9a-fA-F]{2})|u\{0*(?P<braced>[0-7]?[0-9a-fA-F])\}"
         rb"|(?P<octal>[0-3][0-7]{0,2}|[4-7][0-7]?)"
-        rb"|(?P<continuation>\r\n|[\r\n]|\xe2\x80[\xa8\xa9]))"
-        rb"|\\(?P<simple>[^ux0-7\r\n\x80-\xff])")
+        rb"|(?P<continuation>\r\n|[\r\n]|\xe2\x80[\xa8\xa9]))")
+    alternatives = (numeric, separators) if numeric_first else (separators, numeric)
+    escapes = re.compile(b"|".join(alternatives) + rb"|\\(?P<simple>[^ux0-7\r\n\x80-\xff])")
     controls = {b"b": b"\b", b"f": b"\f", b"n": b"\n", b"r": b"\r", b"t": b"\t", b"v": b"\v"}
     def decode(match):
         if match.lastgroup == "separators":
@@ -160,11 +161,15 @@ def content_findings(name, data, *, path_context=False, require_utf8=False):
         scan_data = scan_data[:start] + pattern + scan_data[end:]
     # Scan a decoded view for serialized URLs, without changing source offsets.
     # Be conservative: source comments and multiline strings are not exempt.
-    url_data = url_scan_view(scan_data)
+    decoded_views = []
+    for numeric_first in (False, True):
+        decoded = url_scan_view(scan_data, numeric_first=numeric_first)
+        if not any(decoded == view for view, _ in decoded_views):
+            decoded_views.append((decoded, numeric_first))
     # WHATWG parsing removes ASCII tabs and newlines, including inside schemes.
     # Retain the original view so joining separate lines cannot hide a match.
-    normalized = url_data.translate(None, b"\t\r\n")
-    for match in URL.finditer(url_data + b"\n" + normalized):
+    url_data = b"\n".join(view + b"\n" + view.translate(None, b"\t\r\n") for view, _ in decoded_views)
+    for match in URL.finditer(url_data):
         # Only visibly generic secret-reference examples belong in public docs.
         # Markdown's closing code fence may adjoin the example in the joined view.
         if re.fullmatch(rb"op:/{2}YOUR_[A-Z_]+/YOUR_[A-Z_]+/[a-z-]+", match[1].split(b"`", 1)[0]):
@@ -180,11 +185,12 @@ def content_findings(name, data, *, path_context=False, require_utf8=False):
         if not host or host.lower() not in ALLOWED_DOMAINS:
             issues.append("unapproved URL host requires publication review")
             break
-    for view in (data,) if url_data == data else (data, url_data):
+    for view, numeric_first in [(data, False)] + [(view, mode) for view, mode in decoded_views if view != data]:
         # Keep exceptions tied to original AST nodes after escape lengths change.
         def view_spans(spans):
             return spans if view is data else [
-                (len(url_scan_view(scan_data[:start])), len(url_scan_view(scan_data[:end])))
+                (len(url_scan_view(scan_data[:start], numeric_first=numeric_first)),
+                 len(url_scan_view(scan_data[:end], numeric_first=numeric_first)))
                 for start, end in spans]
         members, paths = view_spans(member_spans), view_spans(path_spans)
         for match in DOMAIN.finditer(view):

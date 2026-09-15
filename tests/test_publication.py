@@ -19,6 +19,14 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_repeated_numeric_escapes_cannot_extend_allowed_hosts(self):
+        for escape in (b"x2e", b"u002e", b"u{2e}", b"056"):
+            for count in (2, 3, 4, 8):
+                for suffix in (b"privatehost", b"private-project" + b".com"):
+                    endpoint = b"https://github.com" + bytes([92]) * count + escape + suffix + b"/path"
+                    with self.subTest(escape=escape, count=count, suffix=suffix):
+                        self.assertTrue(content_findings("fixture.js", endpoint))
+
     def test_scanner_regex_operator_does_not_hide_endpoints(self):
         pattern = b'URL = re.compile(rb"[^/' + bytes([92]) * 3 + b's<>]")'
         self.assertFalse(content_findings("scripts/publication_check.py", pattern))
