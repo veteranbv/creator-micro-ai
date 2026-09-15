@@ -107,10 +107,13 @@ def url_scan_view(data):
     escapes = re.compile(
         rb"\\+(?:u00(?P<unicode>[0-7][0-9a-fA-F])|x(?P<hex>[0-9a-fA-F]{2})|u\{0*(?P<braced>[0-7]?[0-9a-fA-F])\}"
         rb"|(?P<octal>[0-3][0-7]{0,2}|[4-7][0-7]?)"
-        rb"|(?P<continuation>\r\n|[\r\n]|\xe2\x80[\xa8\xa9])"
-        rb"|(?P<simple>[^ux0-7\r\n\x80-\xff]))")
+        rb"|(?P<continuation>\r\n|[\r\n]|\xe2\x80[\xa8\xa9]))"
+        rb"|(?P<separators>\\{2,})(?=[A-Za-z0-9_.~-]+(?:[/\s<>\"'?#:]|$)|\[[0-9a-fA-FvV:.]+\])"
+        rb"|\\(?P<simple>[^ux0-7\r\n\x80-\xff])")
     controls = {b"b": b"\b", b"f": b"\f", b"n": b"\n", b"r": b"\r", b"t": b"\t", b"v": b"\v"}
     def decode(match):
+        if match.lastgroup == "separators":
+            return b"//"
         if match.lastgroup == "continuation":
             return b""
         if match.lastgroup == "simple":
@@ -277,13 +280,11 @@ def main():
     commits = git("rev-list", "--all" if args.all_history else "HEAD").decode().splitlines()
     seen = set()
     for commit in commits:
-        author, committer, author_name, committer_name, message = git(
-            "show", "-s", "--format=%ae%x00%ce%x00%an%x00%cn%x00%B", commit).decode().split("\0", 4)
+        data = git("cat-file", "commit", commit)
+        issues.extend((commit[:12], issue) for issue in content_findings("commit-object", data))
+        author, committer = git("show", "-s", "--format=%ae%x00%ce", commit).decode().strip().split("\0", 1)
         if not identity_allowed(author) or not identity_allowed(committer):
             issues.append((commit[:12], "non-private commit email"))
-        issues.extend((commit[:12], issue) for issue in content_findings("commit-message", message.encode()))
-        for name in (author_name, committer_name):
-            issues.extend((commit[:12], issue) for issue in content_findings("commit-identity", name.encode()))
         issues.extend(tree_findings(commit, seen))
     for name, issue in sorted(set(issues)):
         location = "path-sha256:" + hashlib.sha256(name.encode()).hexdigest()[:12] if path_findings(name) else name

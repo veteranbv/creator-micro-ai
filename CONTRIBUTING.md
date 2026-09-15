@@ -16,8 +16,10 @@ even inside source files. It does not infer comments from line position or skip
 multiline strings. The URL scan uses one conservative escape-decoding pass:
 byte hex escapes, ASCII fixed-width or braced Unicode escapes, JavaScript legacy
 octal escapes, short control escapes, ASCII identity escapes and escaped line
-continuations. Repeated backslashes are accepted for serialized text. Malformed
-numeric escapes and non-ASCII Unicode escapes remain unchanged. Decoded backslashes
+continuations. Repeated backslashes before numeric escapes are accepted for
+serialized text. Repeated backslashes before a plain hostname or IPv6 address
+become two URL separators without consuming the host's first character. Malformed
+numeric values and non-ASCII Unicode values are not decoded. Decoded backslashes
 count as URL separators, not a request to decode another layer. Nested URLs are
 checked independently. HTTP, HTTPS, FTP, WS and WSS addresses are checked even
 without the usual two slashes. A second view removes ASCII tabs and newlines;
@@ -30,5 +32,7 @@ their literal URL-separator interpretation would use an allowed host.
 
 All publication Git reads disable replacement objects. Index entries, trees,
 commits and tags must be checked using their stored bytes, not local substitutes.
+Commit scanning includes all headers and continuation lines, not only the message
+and display identities shown by Git's formatted output.
 
 Keep unrelated projects and private conversation context out of documentation, tests and PR descriptions. Use synthetic examples and a GitHub no-reply email. Run `python3 scripts/publication_check.py --all-history` before pushing. Rebase merging preserves the checked author identity; verify main's metadata after merge.
