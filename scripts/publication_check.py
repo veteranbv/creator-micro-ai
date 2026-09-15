@@ -125,7 +125,7 @@ def url_scan_view(data):
     return escapes.sub(decode, data)
 
 
-def content_findings(name, data, *, path_context=False):
+def content_findings(name, data, *, path_context=False, require_utf8=False):
     issues = privacy_findings(pathlib.Path(name), data)
     if name.lower().endswith(".png") and not metadata_clean(data):
         issues.append("artwork metadata requires sanitization")
@@ -139,6 +139,8 @@ def content_findings(name, data, *, path_context=False):
     try:
         data.decode("utf-8")
     except UnicodeDecodeError:
+        if require_utf8:
+            issues.append("Git metadata must be valid UTF-8 for publication review")
         return issues  # Binary metadata is reviewed separately, not treated as prose.
     member_spans, path_spans = python_reference_spans(name, data)
     # Scan a decoded view for serialized URLs, without changing source offsets.
@@ -241,7 +243,7 @@ def tag_findings():
                 tagger = re.search(rb"(?m)^tagger .* <([^<>]+)> ", header)
                 if not tagger or not identity_allowed(tagger[1].decode(errors="replace")):
                     issues.append((oid[:12], "non-private tagger email"))
-                issues.extend((oid[:12], issue) for issue in content_findings("tag-message", data))
+                issues.extend((oid[:12], issue) for issue in content_findings("tag-message", data, require_utf8=True))
                 target = re.search(rb"(?m)^object ([0-9a-f]+)$", header)
                 if not target:
                     issues.append((oid[:12], "invalid tag target"))
@@ -281,7 +283,7 @@ def main():
     seen = set()
     for commit in commits:
         data = git("cat-file", "commit", commit)
-        issues.extend((commit[:12], issue) for issue in content_findings("commit-object", data))
+        issues.extend((commit[:12], issue) for issue in content_findings("commit-object", data, require_utf8=True))
         author, committer = git("show", "-s", "--format=%ae%x00%ce", commit).decode().strip().split("\0", 1)
         if not identity_allowed(author) or not identity_allowed(committer):
             issues.append((commit[:12], "non-private commit email"))

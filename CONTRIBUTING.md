@@ -34,5 +34,8 @@ All publication Git reads disable replacement objects. Index entries, trees,
 commits and tags must be checked using their stored bytes, not local substitutes.
 Commit scanning includes all headers and continuation lines, not only the message
 and display identities shown by Git's formatted output.
+Complete commit and annotated-tag payloads must be valid UTF-8. Other encodings
+block publication rather than skipping the URL, domain and email checks. This
+requirement does not change the separate review of binary assets.
 
 Keep unrelated projects and private conversation context out of documentation, tests and PR descriptions. Use synthetic examples and a GitHub no-reply email. Run `python3 scripts/publication_check.py --all-history` before pushing. Rebase merging preserves the checked author identity; verify main's metadata after merge.
