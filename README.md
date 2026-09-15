@@ -49,7 +49,7 @@ Bluetooth power-cycle/reconnect testing also has a user-reported pass on the ear
 
 ## Build and test
 
-Use macOS with Xcode Command Line Tools, Node 22 or newer for development tests, and Python 3.10 or newer. No npm install, API key, cloud service or paid AI account is required to build this helper. Target apps and dictation services have their own requirements.
+Use macOS with Xcode Command Line Tools, Node 22 or newer for development tests, Python 3.10 or newer, and jq available on PATH. No npm install, API key, cloud service or paid AI account is required to build this helper. Target apps and dictation services have their own requirements.
 
 ```sh
 bash scripts/test.sh

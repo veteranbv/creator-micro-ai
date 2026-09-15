@@ -52,7 +52,10 @@ system JSON test tool at `/usr/bin/jq`. Missing tools stop the release; it does 
 fall back to similarly named tools on PATH. No shell startup files are edited.
 The release checkout must not contain Git replacement references. Source checks
 and export also disable object replacement to preserve the reviewed commit's bytes.
-Before and after tests, the checkout's regular-file bytes and executable modes
+Tests run in a fresh temporary Git checkout of the reviewed revision, without the
+original checkout's ignored bytecode caches, local modules or build outputs.
+The temporary checkout keeps Git history for the publication and ancestry tests.
+Before and after tests, both checkouts' regular-file bytes and executable modes
 must match the reviewed tree. Index flags that hide changes (`assume-unchanged`
 or `skip-worktree`) are rejected. A clean Git status alone is not enough; filters
 or line-ending conversion must not change the files that the suite actually tests.
@@ -102,8 +105,8 @@ then run:
 python3 scripts/release.py --revision FULL_REVIEWED_COMMIT_SHA
 ```
 
-The command checks credentials, runs the full test suite, exports that exact commit,
-and builds both arm64 and x86_64 slices. It signs with hardened runtime and a secure
+The command checks credentials, runs the full test suite in its isolated checkout,
+exports that exact commit, and builds both arm64 and x86_64 slices. It signs with hardened runtime and a secure
 timestamp, verifies the team and bundle identity, waits for Apple's acceptance,
 staples the ticket, and creates a new ZIP. It extracts that ZIP and checks its
 signature, architectures, stapled ticket and Gatekeeper acceptance before making

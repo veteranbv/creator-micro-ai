@@ -154,7 +154,7 @@ class ReviewGateTests(unittest.TestCase):
         for pr, expected in ((9, 2), (8, 3), (10, None)):
             with self.subTest(pr=pr):
                 result = subprocess.run(
-                    ["/usr/bin/jq", "--argjson", "pr", str(pr), query], input=json.dumps(pages),
+                    [os.environ.get("CREATOR_TEST_JQ", "jq"), "--argjson", "pr", str(pr), query], input=json.dumps(pages),
                     capture_output=True, text=True, check=True,
                 )
                 selected = json.loads(result.stdout)
@@ -164,6 +164,14 @@ class ReviewGateTests(unittest.TestCase):
     def test_completed_review_engages_after_owner_request(self):
         self.data["reviews"]["nodes"] = [review()]
         self.assertEqual(self.engaged(), {gate.CODEX_LOGIN})
+
+    def test_json_fixture_uses_path_default_or_explicit_release_tool(self):
+        for environment, expected in (({}, "jq"), ({"CREATOR_TEST_JQ": "/synthetic/trusted/jq"}, "/synthetic/trusted/jq")):
+            results = [subprocess.CompletedProcess([], 0, json.dumps(value)) for value in ({"id": 2}, {"id": 3}, None)]
+            with self.subTest(environment=environment), patch.dict(os.environ, environment, clear=True), \
+                    patch.object(subprocess, "run", side_effect=results) as command:
+                self.test_retrigger_selects_the_matching_pr_across_pages()
+                self.assertEqual([call.args[0][0] for call in command.call_args_list], [expected] * 3)
 
     def test_empty_task_review_does_not_count(self):
         self.data["reviews"]["nodes"] = [review(body="")]
