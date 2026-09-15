@@ -3,6 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const {execFileSync}=require('node:child_process');
 const root=path.join(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 test('actions are SHA-pinned and the review verdict uses trusted base code',()=>{
@@ -19,6 +20,12 @@ test('published Markdown links resolve within this repository',()=>{
   if(/^(https?:|#)/.test(m[1]))continue;
   assert.ok(fs.existsSync(path.resolve(root,path.dirname(file),m[1].split('#')[0])),`${file}: broken ${m[1]}`);
  }
+});
+test('source-equivalent acceptance checkpoints are reachable from this branch',()=>{
+ const checkpoints=[...read('docs/verification.md').matchAll(/reachable source-equivalent revision(?: after icon-metadata cleanup)? is `([a-f0-9]{40})`/g)];
+ assert.equal(checkpoints.length,2,'Document both acceptance checkpoints');
+ for(const [,revision] of checkpoints)
+  assert.doesNotThrow(()=>execFileSync('/usr/bin/git',['--no-replace-objects','merge-base','--is-ancestor',revision,'HEAD'],{cwd:root,stdio:'pipe'}),`Unreachable acceptance checkpoint: ${revision}`);
 });
 test('layout documents all physical positions without capturing input',()=>{
  const html=read('docs/layout.html');
