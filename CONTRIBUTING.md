@@ -13,14 +13,22 @@ Do not submit screenshots of private conversations, production credentials, loca
 Put a space after `//` in source comments, including `// TODO:` and `// MARK:`.
 The publication scanner treats ambiguous no-space text as a possible address,
 even inside source files. It does not infer comments from line position or skip
-multiline strings. Its URL check also decodes escaped slashes, escaped dots and
-ASCII hex escapes, including braced Unicode escapes, in serialized text or regex
-literals. Decoded backslashes count as URL separators, and nested URLs are checked
-independently. HTTP, HTTPS,
-FTP, WS and WSS addresses are checked even without the usual two slashes. The URL
-check also removes ASCII tabs and newlines, including their short and hex escapes,
-in a separate scan view. The original text is still checked. A passing
-scan is not proof that all private data or arbitrary encodings have been detected;
-review the content before publication.
+multiline strings. The URL scan uses one conservative escape-decoding pass:
+byte hex escapes, ASCII fixed-width or braced Unicode escapes, JavaScript legacy
+octal escapes, short control escapes, ASCII identity escapes and escaped line
+continuations. Repeated backslashes are accepted for serialized text. Malformed
+numeric escapes and non-ASCII Unicode escapes remain unchanged. Decoded backslashes
+count as URL separators, not a request to decode another layer. Nested URLs are
+checked independently. HTTP, HTTPS, FTP, WS and WSS addresses are checked even
+without the usual two slashes. A second view removes ASCII tabs and newlines;
+the first decoded view remains checked. Domain, email and credential checks also
+inspect the original bytes. This is not a source-language parser: it does not
+execute code, join expressions, expand templates or decode arbitrary encodings.
+A passing scan is not proof that all private data has been detected. Review the
+content before publication. Ambiguous backslashes can require review even when
+their literal URL-separator interpretation would use an allowed host.
+
+All publication Git reads disable replacement objects. Index entries, trees,
+commits and tags must be checked using their stored bytes, not local substitutes.
 
 Keep unrelated projects and private conversation context out of documentation, tests and PR descriptions. Use synthetic examples and a GitHub no-reply email. Run `python3 scripts/publication_check.py --all-history` before pushing. Rebase merging preserves the checked author identity; verify main's metadata after merge.

@@ -102,6 +102,26 @@ def python_reference_spans(name, data):
     return member_spans, path_spans
 
 
+def url_scan_view(data):
+    """Decode one conservative escape layer without evaluating source code."""
+    escapes = re.compile(
+        rb"\\+(?:u00(?P<unicode>[0-7][0-9a-fA-F])|x(?P<hex>[0-9a-fA-F]{2})|u\{0*(?P<braced>[0-7]?[0-9a-fA-F])\}"
+        rb"|(?P<octal>[0-3][0-7]{0,2}|[4-7][0-7]?)"
+        rb"|(?P<continuation>\r\n|[\r\n]|\xe2\x80[\xa8\xa9])"
+        rb"|(?P<simple>[^ux0-7\r\n\x80-\xff]))")
+    controls = {b"b": b"\b", b"f": b"\f", b"n": b"\n", b"r": b"\r", b"t": b"\t", b"v": b"\v"}
+    def decode(match):
+        if match.lastgroup == "continuation":
+            return b""
+        if match.lastgroup == "simple":
+            value = controls.get(match["simple"], match["simple"])
+        else:
+            value = bytes([int(match[match.lastgroup], 8 if match.lastgroup == "octal" else 16)])
+        # Network URL parsing treats backslashes as separators, not another escape layer.
+        return value.replace(b"\\", b"/")
+    return escapes.sub(decode, data)
+
+
 def content_findings(name, data, *, path_context=False):
     issues = privacy_findings(pathlib.Path(name), data)
     if name.lower().endswith(".png") and not metadata_clean(data):
@@ -120,11 +140,10 @@ def content_findings(name, data, *, path_context=False):
     member_spans, path_spans = python_reference_spans(name, data)
     # Scan a decoded view for serialized URLs, without changing source offsets.
     # Be conservative: source comments and multiline strings are not exempt.
-    url_data = re.sub(rb"\\+(?:[/.]|u00([0-9a-fA-F]{2})|x([0-9a-fA-F]{2})|u\{0*([0-7]?[0-9a-fA-F])\})",
-                      lambda m: bytes([int(m[1] or m[2] or m[3], 16)]).replace(b"\\", b"/") if any(m.groups()) else m.group()[-1:], data)
+    url_data = url_scan_view(data)
     # WHATWG parsing removes ASCII tabs and newlines, including inside schemes.
     # Retain the original view so joining separate lines cannot hide a match.
-    normalized = re.sub(rb"\\+[trn]", b"", url_data).translate(None, b"\t\r\n")
+    normalized = url_data.translate(None, b"\t\r\n")
     for match in URL.finditer(url_data + b"\n" + normalized):
         # Only visibly generic secret-reference examples belong in public docs.
         # Markdown's closing code fence may adjoin the example in the joined view.
@@ -183,7 +202,7 @@ def path_findings(name):
 
 
 def git(*args):
-    return subprocess.check_output(["git", *args], cwd=ROOT)
+    return subprocess.check_output(["/usr/bin/git", "--no-replace-objects", *args], cwd=ROOT)
 
 
 def tree_findings(tree, seen):
