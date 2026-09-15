@@ -27,7 +27,7 @@ PUBLIC_TLDS = {
 URL = re.compile(
     rb"(?=(\b(?:https?|ftp|wss?):[/\\]*[^/\\\s<>\"'][^\s<>\"']*"
     rb"|\b[a-zA-Z][a-zA-Z0-9+.-]*:/{2}[^\s<>\"']+"
-    rb"|(?<![\w+./:-])/{2}(?=[\w%~!$&*+,;=:@.-]|\[[0-9a-fA-FvV:])[^\s<>\"']+))", re.IGNORECASE)
+    rb"|(?<![\w+./:-])/{2,}(?=[\w%~!$&*+,;=:@.-]|\[[0-9a-fA-FvV:])[^\s<>\"']+))", re.IGNORECASE)
 # These exact references are files, not hosts. URLs never use this exception.
 FILE_REFERENCES = {
     "README.md", "CONTRIBUTING.md", "PRIVACY.md", "AGENTS.md", "NOTICE.md", "SECURITY.md",
@@ -58,16 +58,25 @@ EMAIL = re.compile(rb"[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
 
 def python_reference_spans(name, data):
     if pathlib.Path(name).suffix != ".py":
-        return [], []
+        return [], [], []
     try:
         tree = ast.parse(data)
     except (SyntaxError, ValueError):
-        return [], []
+        return [], [], []
     offsets = [0]
     for line in data.splitlines(keepends=True):
         offsets.append(offsets[-1] + len(line))
-    member_spans, path_spans = [], []
+    member_spans, path_spans, url_pattern_spans = [], [], []
     for node in ast.walk(tree):
+        if (name == "scripts/publication_check.py" and isinstance(node, ast.Assign)
+                and any(isinstance(url_target, Name) and url_target.id == "URL" for url_target in node.targets)
+                and isinstance(node.value, Call) and isinstance(url_function := node.value.func, ast.Attribute)
+                and isinstance(url_function.value, Name) and url_function.value.id == "re"
+                and url_function.attr == "compile" and node.value.args
+                and isinstance(node.value.args[0], ast.Constant)):
+            pattern = node.value.args[0]
+            url_pattern_spans.append((offsets[pattern.lineno - 1] + pattern.col_offset,
+                                      offsets[pattern.end_lineno - 1] + pattern.end_col_offset))
         candidates = [node] if isinstance(node, ast.Attribute) else []
         # The checker's explicit policy table is data, not a connection endpoint.
         if name == "scripts/publication_check.py" and isinstance(node, ast.Assign) and isinstance(node.value, ast.Set):
@@ -98,7 +107,7 @@ def python_reference_spans(name, data):
                 (member_spans if candidate.value in PYTHON_MEMBERS else path_spans).append((start, end))
             elif data[start:end].decode() in PYTHON_MEMBERS:
                 member_spans.append((start, end))
-    return member_spans, path_spans
+    return member_spans, path_spans, url_pattern_spans
 
 
 def url_scan_view(data):
@@ -141,10 +150,17 @@ def content_findings(name, data, *, path_context=False, require_utf8=False):
         if require_utf8:
             issues.append("Git metadata must be valid UTF-8 for publication review")
         return issues  # Binary metadata is reviewed separately, not treated as prose.
-    member_spans, path_spans = python_reference_spans(name, data)
+    member_spans, path_spans, url_pattern_spans = python_reference_spans(name, data)
+    scan_data = data
+    for start, end in url_pattern_spans:
+        # Reorder this equivalent regex character class before escape decoding.
+        # Otherwise the scanner's own slash/backslash/whitespace exclusion
+        # becomes a synthetic three-slash URL. No pattern text is exempted.
+        pattern = scan_data[start:end].replace(rb"[^/" + b"\\" * 3 + b"s", rb"[^\s/" + b"\\" * 2)
+        scan_data = scan_data[:start] + pattern + scan_data[end:]
     # Scan a decoded view for serialized URLs, without changing source offsets.
     # Be conservative: source comments and multiline strings are not exempt.
-    url_data = url_scan_view(data)
+    url_data = url_scan_view(scan_data)
     # WHATWG parsing removes ASCII tabs and newlines, including inside schemes.
     # Retain the original view so joining separate lines cannot hide a match.
     normalized = url_data.translate(None, b"\t\r\n")
@@ -156,6 +172,7 @@ def content_findings(name, data, *, path_context=False, require_utf8=False):
         # WHATWG network schemes accept missing or repeated slash/backslash
         # separators. Normalize those forms before the strict authority parser.
         address = re.sub(rb"^((?:https?|ftp|wss?):)[/\\]*", rb"\1//", match[1], flags=re.IGNORECASE)
+        address = re.sub(rb"^/{3,}", b"//", address)
         try:
             host = urlsplit(address.replace(b"\\", b"/").decode()).hostname
         except ValueError:
@@ -163,25 +180,32 @@ def content_findings(name, data, *, path_context=False, require_utf8=False):
         if not host or host.lower() not in ALLOWED_DOMAINS:
             issues.append("unapproved URL host requires publication review")
             break
-    for match in DOMAIN.finditer(data):
-        token = match.group().decode()
-        if token in FILE_REFERENCES:
-            if token not in PATH_REFERENCES or path_context or data[match.start() - 1:match.start()] == b"/":
+    for view in (data,) if url_data == data else (data, url_data):
+        # Keep exceptions tied to original AST nodes after escape lengths change.
+        def view_spans(spans):
+            return spans if view is data else [
+                (len(url_scan_view(scan_data[:start])), len(url_scan_view(scan_data[:end])))
+                for start, end in spans]
+        members, paths = view_spans(member_spans), view_spans(path_spans)
+        for match in DOMAIN.finditer(view):
+            token = match.group().decode()
+            if token in FILE_REFERENCES:
+                if token not in PATH_REFERENCES or path_context or view[match.start() - 1:match.start()] == b"/":
+                    continue
+                if any(start <= match.start() and match.end() <= end for start, end in paths):
+                    continue
+            if token in PYTHON_MEMBERS:
+                if any(start <= match.start() and match.end() <= end for start, end in members):
+                    continue
+            elif pathlib.Path(name).suffix in SOURCE_EXTENSIONS and token in SOURCE_REFERENCES:
                 continue
-            if any(start <= match.start() and match.end() <= end for start, end in path_spans):
-                continue
-        if token in PYTHON_MEMBERS:
-            if any(start <= match.start() and match.end() <= end for start, end in member_spans):
-                continue
-        elif pathlib.Path(name).suffix in SOURCE_EXTENSIONS and token in SOURCE_REFERENCES:
-            continue
-        if token.rsplit(".", 1)[-1].lower() in PUBLIC_TLDS and token.lower() not in ALLOWED_DOMAINS:
-            issues.append("unapproved domain requires publication review")
-            break
-    for match in EMAIL.finditer(data):
-        if match.group().lower() != b"noreply@github.com" and match[1].lower() not in {b"users.noreply.github.com", b"example.test"}:
-            issues.append("personal email is not publication-safe")
-            break
+            if token.rsplit(".", 1)[-1].lower() in PUBLIC_TLDS and token.lower() not in ALLOWED_DOMAINS:
+                issues.append("unapproved domain requires publication review")
+                break
+        for match in EMAIL.finditer(view):
+            if match.group().lower() != b"noreply@github.com" and match[1].lower() not in {b"users.noreply.github.com", b"example.test"}:
+                issues.append("personal email is not publication-safe")
+                break
     return issues
 
 

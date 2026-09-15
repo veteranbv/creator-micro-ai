@@ -19,6 +19,37 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_scanner_regex_operator_does_not_hide_endpoints(self):
+        pattern = b'URL = re.compile(rb"[^/' + bytes([92]) * 3 + b's<>]")'
+        self.assertFalse(content_findings("scripts/publication_check.py", pattern))
+        self.assertTrue(content_findings("fixture.py", pattern))
+        endpoint = b'\nendpoint = "' + b'/' * 3 + b'buildserver/private"'
+        self.assertTrue(content_findings("scripts/publication_check.py", pattern + endpoint))
+        embedded = pattern[:-2] + b'|' + b'/' * 3 + b'buildserver/private")'
+        self.assertTrue(content_findings("scripts/publication_check.py", embedded))
+
+    def test_decoded_domains_and_emails_cannot_hide_in_source(self):
+        for escape in (br"\x2e", br"\u002e", br"\u{2e}", br"\056"):
+            for host in (b"source" + escape + b"zip", b"private-project" + escape + b"com"):
+                for name in ("fixture.py", "fixture.js", "notes.md"):
+                    with self.subTest(escape=escape, name=name, host=host):
+                        self.assertTrue(content_findings(name, b'connect("' + host + b'")'))
+        # An unrelated genuine path reference must not exempt the endpoint.
+        self.assertTrue(content_findings("fixture.py", b'p = root / "source.zip"\nconnect("source\\x2ezip")'))
+        self.assertFalse(content_findings("fixture.py", b'p = root / "source\\x2ezip"'))
+        self.assertFalse(content_findings("fixture.js", br'connect("github\x2ecom")'))
+        self.assertTrue(content_findings("notes.md", b'person' + br'\x40' + b'github.com'))
+        self.assertFalse(content_findings("notes.md", b'123+fixture' + br'\u{40}' + b'users.noreply.github.com'))
+
+    def test_repeated_scheme_relative_separators_are_authorities(self):
+        for count in (3, 4, 8):
+            for slash in (b"/", br"\x2f", br"\u002f"):
+                for host in (b"source" + b".zip", b"buildserver", b"[fd00::1]"):
+                    with self.subTest(count=count, slash=slash, host=host):
+                        self.assertTrue(content_findings("fixture.js", slash * count + host + b"/private"))
+            for slash in (b"/", br"\u{2f}"):
+                self.assertFalse(content_findings("fixture.js", slash * count + b"github.com/example"))
+
     def test_git_environment_preserves_path_and_removes_overrides(self):
         env = {"PATH": os.environ["PATH"], "GIT_INDEX_FILE": "alternate-index",
                "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "core.worktree",
