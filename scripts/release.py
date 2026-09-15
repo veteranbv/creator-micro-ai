@@ -125,6 +125,9 @@ def test_reviewed_source(config, revision):
         run("Select reviewed test revision", "/usr/bin/git", "--no-replace-objects",
             "-c", "core.hooksPath=/dev/null", "-c", "core.autocrlf=false",
             "checkout", "--detach", revision, cwd=source)
+        run("Preserve all publication refs", "/usr/bin/git", "--no-replace-objects",
+            "fetch", "--no-recurse-submodules", "--no-write-fetch-head", "origin",
+            "+refs/*:refs/*", cwd=source)
         clean_revision(revision, root=source)
         run("Run full test suite", "/bin/bash", "scripts/test.sh", config["node"], sys.executable,
             "/usr/bin/jq", cwd=source)

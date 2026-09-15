@@ -142,6 +142,40 @@ class ReleaseTests(unittest.TestCase):
                         release.test_reviewed_source(self.config, revision)
                 self.assertEqual(cache.read_bytes(), original_cache)
 
+    def test_isolated_publication_scan_includes_custom_ref_history(self):
+        root = self.root / "checkout"
+        root.mkdir()
+        environment = {"PATH": os.environ["PATH"], "HOME": str(self.root),
+                       "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+        def git(*args):
+            return subprocess.check_output(["/usr/bin/git", *args], cwd=root,
+                                           env=environment, stderr=subprocess.DEVNULL)
+        git("init", "-b", "main")
+        git("config", "user.name", "Fixture")
+        git("config", "user.email", "123+fixture@users.noreply.github.com")
+        (root / "scripts").mkdir()
+        for name in ("publication_check.py", "privacy_check.py", "artwork_metadata.py", "public-tlds.txt"):
+            (root / "scripts" / name).write_bytes((release.ROOT / "scripts" / name).read_bytes())
+        (root / "scripts/test.sh").write_text('set -e\n"$2" scripts/publication_check.py --all-history\n')
+        (root / ".gitignore").write_text("__pycache__/\n")
+        git("add", ".")
+        git("-c", "commit.gpgsign=false", "commit", "-m", "Reviewed fixture")
+        revision = git("rev-parse", "HEAD").decode().strip()
+        tree = git("rev-parse", "HEAD^{tree}").decode().strip()
+        # Only the custom ref reaches this synthetic non-no-reply identity.
+        archived = git("-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false",
+                       "commit-tree", tree, "-m", "Archived fixture").decode().strip()
+        with patch.dict(os.environ, environment, clear=True), patch.object(release, "ROOT", root):
+            release.test_reviewed_source(self.config, revision)
+            for reference in ("refs/archive/fixture", "refs/remotes/retired/fixture"):
+                with self.subTest(reference=reference):
+                    git("update-ref", reference, archived)
+                    self.assertEqual(len(git("rev-list", "--all").splitlines()), 2)
+                    with self.assertRaisesRegex(RuntimeError, "Run full test suite failed"):
+                        release.test_reviewed_source(self.config, revision)
+                    self.assertEqual(git("rev-parse", reference).decode().strip(), archived)
+                    git("update-ref", "-d", reference)
+
     def test_missing_or_relative_node_path_is_rejected(self):
         path = self.root / "config.json"
         for node in ("node", str(self.root / "missing"), str(self.root)):
