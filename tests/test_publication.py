@@ -19,6 +19,38 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_non_utf8_git_metadata_cannot_skip_publication_review(self):
+        with tempfile.TemporaryDirectory(prefix="publication-encoding-test-") as directory:
+            root = pathlib.Path(directory)
+            env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+            def git(*args, input=None):
+                return subprocess.check_output(["/usr/bin/git", *args], cwd=root, env=env,
+                                               input=input, stderr=subprocess.DEVNULL)
+            git("init", "-b", "main")
+            tree = git("mktree", input=b"").strip()
+            identity = b"Fixture <123+fixture@users.noreply.github.com> 1 +0000\n"
+            base = b"tree " + tree + b"\nauthor " + identity + b"committer " + identity
+            private = b"private-project" + b".com"
+            clean = git("hash-object", "-t", "commit", "-w", "--stdin", input=base + b"\nSafe fixture\n").strip()
+            for kind in ("commit", "tag"):
+                with self.subTest(kind=kind):
+                    git("update-ref", "refs/heads/main", clean.decode())
+                    if kind == "commit":
+                        payload = base + b"encoding ISO-8859-1\ncustom " + private + b"\n\nFixture \xff\n"
+                    else:
+                        payload = b"object " + clean + b"\ntype commit\ntag fixture\ntagger " + identity + b"\n" + private + b" \xff\n"
+                    oid = git("hash-object", "-t", kind, "-w", "--stdin", input=payload).strip()
+                    git("update-ref", "refs/heads/main" if kind == "commit" else "refs/tags/fixture", oid.decode())
+                    git("fsck", "--strict", "--no-reflogs")
+                    output = io.StringIO()
+                    with mock.patch.object(publication_check, "ROOT", root), \
+                            mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(output):
+                        self.assertEqual(publication_check.main(), 1)
+                    self.assertIn("UTF-8", output.getvalue())
+                    self.assertNotIn(private.decode(), output.getvalue())
+        self.assertFalse(content_findings("asset.bin", b"\xff"))
+        self.assertFalse(content_findings("commit-object", "Caf\u00e9".encode(), require_utf8=True))
+
     def test_repeated_backslashes_preserve_private_url_authorities(self):
         for scheme in (b"ssh:", b"custom:", b"https:", b""):
             for count in (2, 3, 4, 8):
