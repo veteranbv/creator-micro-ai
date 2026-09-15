@@ -2,14 +2,15 @@
 set -euo pipefail
 root="$(cd "$(/usr/bin/dirname "$0")/.." && pwd)"
 cd "$root"
-if [[ $# != 0 && $# != 2 ]]; then echo 'Usage: bash scripts/test.sh [ABSOLUTE_NODE ABSOLUTE_PYTHON]' >&2; exit 1; fi
+if [[ $# != 0 && $# != 2 && $# != 3 ]]; then echo 'Usage: bash scripts/test.sh [ABSOLUTE_NODE ABSOLUTE_PYTHON [ABSOLUTE_JQ]]' >&2; exit 1; fi
 node="${1:-node}"
 python="${2:-python3}"
-if [[ $# == 2 && ( "$node" != /* || "$python" != /* ) ]]; then
+if [[ $# -ge 2 && ( "$node" != /* || "$python" != /* ) ]]; then
   echo 'Explicit test interpreters must use absolute paths.' >&2; exit 1
 fi
+if [[ $# == 3 && "$3" != /* ]]; then echo 'Explicit JSON test tool must use an absolute path.' >&2; exit 1; fi
 "$node" --test tests/*.test.js
-"$python" -m unittest discover -s .github/scripts -p 'test_*.py'
+CREATOR_TEST_JQ="${3:-jq}" "$python" -m unittest discover -s .github/scripts -p 'test_*.py'
 "$python" -m unittest discover -s tests -p 'test_*.py'
 "$python" scripts/privacy_check.py
 "$python" scripts/publication_check.py --all-history

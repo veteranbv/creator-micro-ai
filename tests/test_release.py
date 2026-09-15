@@ -7,6 +7,7 @@ import json
 import os
 import pathlib
 import plistlib
+import py_compile
 import subprocess
 import signal
 import sys
@@ -55,6 +56,10 @@ class ReleaseTests(unittest.TestCase):
         if label == "Export exact source revision":
             with zipfile.ZipFile(args[-2].removeprefix("--output="), "w") as archive:
                 archive.writestr("fixture", "synthetic source")
+        if label == "Create isolated test checkout":
+            source = pathlib.Path(args[-1])
+            source.mkdir()
+            (source / "fixture").write_text("synthetic source")
         if label in {"Read reviewed source tree", "Read checkout source tree"}:
             data = b"synthetic source"
             oid = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
@@ -97,7 +102,45 @@ class ReleaseTests(unittest.TestCase):
                 if tool == "git":
                     self.assertEqual(args[1], "--no-replace-objects", label)
         tests = next(args for label, args in self.calls if label == "Run full test suite")
-        self.assertEqual(tests, ("/bin/bash", "scripts/test.sh", self.config["node"], sys.executable))
+        self.assertEqual(tests, ("/bin/bash", "scripts/test.sh", self.config["node"], sys.executable, "/usr/bin/jq"))
+
+    def test_ignored_bytecode_cannot_replace_reviewed_tests(self):
+        for directory in ("tests", ".github/scripts"):
+            with self.subTest(directory=directory), tempfile.TemporaryDirectory() as temporary:
+                root = pathlib.Path(temporary)
+                environment = {"PATH": os.environ["PATH"], "HOME": str(root),
+                               "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+                def git(*args):
+                    return subprocess.check_output(["/usr/bin/git", *args], cwd=root,
+                                                   env=environment, stderr=subprocess.DEVNULL)
+                git("init", "-b", "main")
+                git("config", "user.name", "Fixture")
+                git("config", "user.email", "123+fixture@users.noreply.github.com")
+                (root / ".gitignore").write_text("__pycache__/\n*.pyc\n")
+                (root / "scripts").mkdir()
+                (root / "scripts/test.sh").write_text(
+                    'set -e\n"$2" -m unittest discover -s ' + directory + " -p 'test_*.py'\n")
+                test = root / directory / "test_fixture.py"
+                test.parent.mkdir(parents=True, exist_ok=True)
+                passing = "import unittest\nclass Fixture(unittest.TestCase):\n def test_source(self): self.assertTrue(True )\n"
+                failing = passing.replace("True ", "False")
+                test.write_text(passing)
+                os.utime(test, (1600000000, 1600000000))
+                cache = pathlib.Path(py_compile.compile(str(test), doraise=True))
+                test.write_text(failing)
+                os.utime(test, (1600000000, 1600000000))
+                original_cache = cache.read_bytes()
+                git("add", ".")
+                git("-c", "commit.gpgsign=false", "commit", "-m", "Reviewed failing fixture")
+                revision = git("rev-parse", "HEAD").decode().strip()
+                self.assertEqual(git("status", "--porcelain"), b"")
+                with patch.dict(os.environ, environment, clear=True), patch.object(release, "ROOT", root):
+                    release.clean_revision(revision)
+                    # Reproduce the old behavior: ignored bytecode makes failing source pass.
+                    release.run("Reproduce cached tests", "/bin/bash", "scripts/test.sh", "unused", sys.executable, cwd=root)
+                    with self.assertRaisesRegex(RuntimeError, "Run full test suite failed"):
+                        release.test_reviewed_source(self.config, revision)
+                self.assertEqual(cache.read_bytes(), original_cache)
 
     def test_missing_or_relative_node_path_is_rejected(self):
         path = self.root / "config.json"
@@ -136,7 +179,8 @@ class ReleaseTests(unittest.TestCase):
         def checked_run(label, *args, **kwargs):
             if args[0] != "/usr/bin/git":
                 self.fail("Hidden source changes reached credential or build tools")
-            return actual_run(label, *args, cwd=checkout, **kwargs)
+            kwargs.setdefault("cwd", checkout)
+            return actual_run(label, *args, **kwargs)
         for flag in ("skip-worktree", "assume-unchanged"):
             with self.subTest(flag=flag):
                 git("update-index", "--" + flag, "fixture")
@@ -161,6 +205,16 @@ class ReleaseTests(unittest.TestCase):
         def command(label, *args, **kwargs):
             if label == "Run full test suite":
                 (self.root / "fixture").write_bytes(b"changed during tests")
+            return self.command(label, *args, **kwargs)
+        with patch.object(release, "ROOT", self.root), patch.object(release, "run", side_effect=command):
+            with self.assertRaisesRegex(RuntimeError, "checkout bytes"):
+                release.release(self.config, REVISION)
+        self.assertNotIn("Export exact source revision", [label for label, _ in self.calls])
+
+    def test_isolated_test_source_changes_stop_before_export(self):
+        def command(label, *args, **kwargs):
+            if label == "Run full test suite":
+                (pathlib.Path(kwargs["cwd"]) / "fixture").write_bytes(b"changed during tests")
             return self.command(label, *args, **kwargs)
         with patch.object(release, "ROOT", self.root), patch.object(release, "run", side_effect=command):
             with self.assertRaisesRegex(RuntimeError, "checkout bytes"):
@@ -205,8 +259,9 @@ class ReleaseTests(unittest.TestCase):
                     calls.append(label)
                     if args[0] != "/usr/bin/git":
                         self.fail("Replacement refs reached credential or build tools")
-                    return actual_run(label, *args, cwd=checkout, **kwargs)
-                with patch.dict(os.environ, environment, clear=True), patch.object(release, "run", side_effect=checked_run):
+                    kwargs.setdefault("cwd", checkout)
+                    return actual_run(label, *args, **kwargs)
+                with patch.dict(os.environ, environment, clear=True), patch.object(release, "ROOT", checkout), patch.object(release, "run", side_effect=checked_run):
                     with self.assertRaisesRegex(RuntimeError, "replacement"):
                         release.release(self.config, reviewed)
                 self.assertNotIn("Check local signing identity", calls)
@@ -233,8 +288,8 @@ class ReleaseTests(unittest.TestCase):
         checkout.mkdir()
         environment = {"PATH": os.environ["PATH"], "HOME": str(self.root),
                        "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
-        def git(*args):
-            return subprocess.check_output(["/usr/bin/git", *args], cwd=checkout,
+        def git(*args, cwd=checkout):
+            return subprocess.check_output(["/usr/bin/git", *args], cwd=cwd,
                                            env=environment, stderr=subprocess.DEVNULL)
         git("init", "-b", "main")
         git("config", "user.name", "Fixture")
@@ -249,7 +304,7 @@ class ReleaseTests(unittest.TestCase):
         def checked_run(label, *args, **kwargs):
             if args[0] == "/usr/bin/git":
                 self.calls.append((label, args))
-                return git(*args[1:]).decode()
+                return git(*args[1:], cwd=kwargs.get("cwd", checkout)).decode()
             return self.command(label, *args, **kwargs)
         for location in ("local", "configured"):
             attributes = checkout / ".git/info/attributes" if location == "local" else self.root / "attributes"

@@ -87,32 +87,48 @@ def settings(path):
     return config
 
 
-def clean_revision(revision):
+def clean_revision(revision, root=None):
+    root = ROOT if root is None else root
     if not re.fullmatch(r"[a-f0-9]{40}", revision):
         raise RuntimeError("Pass the full reviewed commit SHA with --revision.")
     if run("Check replacement refs", "/usr/bin/git", "--no-replace-objects", "for-each-ref",
-           "--format=%(refname)", "refs/replace/").strip():
+           "--format=%(refname)", "refs/replace/", cwd=root).strip():
         raise RuntimeError("Git replacement references are not allowed in a release checkout.")
-    if run("Check source revision", "/usr/bin/git", "--no-replace-objects", "rev-parse", "HEAD").strip() != revision:
+    if run("Check source revision", "/usr/bin/git", "--no-replace-objects", "rev-parse", "HEAD", cwd=root).strip() != revision:
         raise RuntimeError("The checked-out revision does not match --revision.")
-    if run("Check source cleanliness", "/usr/bin/git", "--no-replace-objects", "status", "--porcelain", "--untracked-files=all").strip():
+    if run("Check source cleanliness", "/usr/bin/git", "--no-replace-objects", "status", "--porcelain", "--untracked-files=all", cwd=root).strip():
         raise RuntimeError("Commit or remove source changes before releasing.")
-    entries = run("Check source index flags", "/usr/bin/git", "--no-replace-objects", "ls-files", "-v", "-z")
+    entries = run("Check source index flags", "/usr/bin/git", "--no-replace-objects", "ls-files", "-v", "-z", cwd=root)
     if any(entry[0].islower() or entry[0] == "S" for entry in entries.split("\0") if entry):
         raise RuntimeError("Release index flags must not hide tracked files. Clear assume-unchanged and skip-worktree flags.")
-    tree = run("Read checkout source tree", "/usr/bin/git", "--no-replace-objects", "ls-tree", "-rz", "--full-tree", revision)
+    tree = run("Read checkout source tree", "/usr/bin/git", "--no-replace-objects", "ls-tree", "-rz", "--full-tree", revision, cwd=root)
     for record in tree.split("\0"):
         if not record:
             continue
         metadata, name = record.split("\t", 1)
         mode, kind, expected = metadata.split()
-        file = ROOT / name
+        file = root / name
         if kind != "blob" or mode not in {"100644", "100755"} or file.is_symlink() or not file.is_file():
             raise RuntimeError("Release checkout must contain the reviewed regular files.")
         data = file.read_bytes()
         actual = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
         if actual != expected or bool(file.stat().st_mode & 0o111) != (mode == "100755"):
             raise RuntimeError("Release checkout bytes or executable modes differ from the reviewed tree.")
+
+
+def test_reviewed_source(config, revision):
+    """Run tests without importing ignored files from the maintainer's checkout."""
+    with tempfile.TemporaryDirectory(prefix="release-tests-") as temporary:
+        source = pathlib.Path(temporary) / "source"
+        run("Create isolated test checkout", "/usr/bin/git", "--no-replace-objects", "clone",
+            "--no-hardlinks", "--no-checkout", "--template=", "--", str(ROOT), str(source))
+        run("Select reviewed test revision", "/usr/bin/git", "--no-replace-objects",
+            "-c", "core.hooksPath=/dev/null", "-c", "core.autocrlf=false",
+            "checkout", "--detach", revision, cwd=source)
+        clean_revision(revision, root=source)
+        run("Run full test suite", "/bin/bash", "scripts/test.sh", config["node"], sys.executable,
+            "/usr/bin/jq", cwd=source)
+        clean_revision(revision, root=source)
 
 
 def extract_reviewed_source(archive, source, revision):
@@ -191,7 +207,7 @@ def release(config, revision, password=None):
         auth += ["--keychain", config["notary_keychain"]]
     run("Check saved notarization credentials", "/usr/bin/xcrun", "notarytool", "history", *auth,
         "--output-format", "json", timeout=120)
-    run("Run full test suite", "/bin/bash", "scripts/test.sh", config["node"], sys.executable)
+    test_reviewed_source(config, revision)
     clean_revision(revision)
     output = ROOT / "build/releases"
     output.mkdir(parents=True, exist_ok=True)
