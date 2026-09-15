@@ -19,6 +19,40 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_repeated_backslashes_preserve_private_url_authorities(self):
+        for scheme in (b"ssh:", b"custom:", b"https:", b""):
+            for count in (2, 3, 4, 8):
+                for host in (b"buildserver", b"fileserver", b"node", b"router", b"[fd00::1]"):
+                    endpoint = scheme + b"\\" * count + host + b"/private"
+                    with self.subTest(endpoint=endpoint):
+                        self.assertTrue(content_findings("fixture.js", endpoint))
+
+    def test_raw_commit_headers_are_scanned_and_redacted(self):
+        with tempfile.TemporaryDirectory(prefix="publication-header-test-") as directory:
+            root = pathlib.Path(directory)
+            env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+            def git(*args, input=None):
+                return subprocess.check_output(["/usr/bin/git", *args], cwd=root, env=env,
+                                               input=input, stderr=subprocess.DEVNULL)
+            git("init", "-b", "main")
+            tree = git("mktree", input=b"").strip()
+            identity = b"Fixture <123+fixture@users.noreply.github.com> 1 +0000\n"
+            base = b"tree " + tree + b"\nauthor " + identity + b"committer " + identity
+            marker = b"-----BEGIN " + b"PRIVATE KEY-----"
+            for header in (b"custom " + marker, b"gpgsig synthetic\n " + marker,
+                           b"mergetag synthetic\n " + marker):
+                with self.subTest(header=header):
+                    payload = base + header + b"\n\nSafe fixture\n"
+                    commit = git("hash-object", "-t", "commit", "-w", "--stdin", input=payload).strip()
+                    git("update-ref", "refs/heads/main", commit.decode())
+                    self.assertNotIn(marker, git("show", "-s", "--format=%ae%x00%ce%x00%an%x00%cn%x00%B", "HEAD"))
+                    output = io.StringIO()
+                    with mock.patch.object(publication_check, "ROOT", root), \
+                            mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(output):
+                        self.assertEqual(publication_check.main(), 1)
+                    self.assertIn("possible credential", output.getvalue())
+                    self.assertNotIn(marker.decode(), output.getvalue())
+
     def test_escape_normalization_is_bounded_and_preserves_unknown_forms(self):
         for source, expected in ((br"\377", bytes([255])), (br"\400", b" 0"),
                                  (br"\777", b"?7"), (br"\08", b"\0" + b"8"),
