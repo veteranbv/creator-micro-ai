@@ -5,10 +5,9 @@ from ast import Call, Name
 import hashlib
 import pathlib
 import re
-import subprocess
 from urllib.parse import urlsplit
 
-from privacy_check import findings as privacy_findings, staged_blobs
+from privacy_check import findings as privacy_findings, git_output, staged_blobs
 from artwork_metadata import metadata_clean, sanitized_icon
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -105,10 +104,10 @@ def python_reference_spans(name, data):
 def url_scan_view(data):
     """Decode one conservative escape layer without evaluating source code."""
     escapes = re.compile(
-        rb"\\+(?:u00(?P<unicode>[0-7][0-9a-fA-F])|x(?P<hex>[0-9a-fA-F]{2})|u\{0*(?P<braced>[0-7]?[0-9a-fA-F])\}"
+        rb"(?P<separators>\\{2,})(?=[A-Za-z0-9_.~-]+(?:[/\s<>\"'?#:]|$)|\[[0-9a-fA-FvV:.]+\])"
+        rb"|\\+(?:u00(?P<unicode>[0-7][0-9a-fA-F])|x(?P<hex>[0-9a-fA-F]{2})|u\{0*(?P<braced>[0-7]?[0-9a-fA-F])\}"
         rb"|(?P<octal>[0-3][0-7]{0,2}|[4-7][0-7]?)"
         rb"|(?P<continuation>\r\n|[\r\n]|\xe2\x80[\xa8\xa9]))"
-        rb"|(?P<separators>\\{2,})(?=[A-Za-z0-9_.~-]+(?:[/\s<>\"'?#:]|$)|\[[0-9a-fA-FvV:.]+\])"
         rb"|\\(?P<simple>[^ux0-7\r\n\x80-\xff])")
     controls = {b"b": b"\b", b"f": b"\f", b"n": b"\n", b"r": b"\r", b"t": b"\t", b"v": b"\v"}
     def decode(match):
@@ -207,7 +206,7 @@ def path_findings(name):
 
 
 def git(*args):
-    return subprocess.check_output(["/usr/bin/git", "--no-replace-objects", *args], cwd=ROOT)
+    return git_output(ROOT, *args)
 
 
 def tree_findings(tree, seen):

@@ -18,7 +18,8 @@ byte hex escapes, ASCII fixed-width or braced Unicode escapes, JavaScript legacy
 octal escapes, short control escapes, ASCII identity escapes and escaped line
 continuations. Repeated backslashes before numeric escapes are accepted for
 serialized text. Repeated backslashes before a plain hostname or IPv6 address
-become two URL separators without consuming the host's first character. Malformed
+become two URL separators without consuming the host's first character. A complete
+hostname takes precedence even when its prefix looks like a numeric escape. Malformed
 numeric values and non-ASCII Unicode values are not decoded. Decoded backslashes
 count as URL separators, not a request to decode another layer. Nested URLs are
 checked independently. HTTP, HTTPS, FTP, WS and WSS addresses are checked even
@@ -30,8 +31,11 @@ A passing scan is not proof that all private data has been detected. Review the
 content before publication. Ambiguous backslashes can require review even when
 their literal URL-separator interpretation would use an allowed host.
 
-All publication Git reads disable replacement objects. Index entries, trees,
-commits and tags must be checked using their stored bytes, not local substitutes.
+All publication Git reads disable replacement objects and remove inherited
+`GIT_` environment overrides. They inspect this checkout's repository and index,
+not an alternate location selected by the shell. PATH is left unchanged.
+Index entries, trees, commits and tags must be checked using their stored bytes,
+not local substitutes.
 Commit scanning includes all headers and continuation lines, not only the message
 and display identities shown by Git's formatted output.
 Complete commit and annotated-tag payloads must be valid UTF-8. Other encodings

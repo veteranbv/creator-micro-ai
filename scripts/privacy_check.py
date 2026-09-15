@@ -1,6 +1,7 @@
 """Fail closed on common accidental disclosures and forbidden runtime capture APIs."""
 import pathlib
 import io
+import os
 import re
 import subprocess
 import sys
@@ -39,10 +40,16 @@ def findings(path, data):
         issues.append("private local artifact must not be published")
     return issues
 
+def git_output(root, *args):
+    """Inspect this checkout without inherited Git repository overrides."""
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    return subprocess.check_output(["/usr/bin/git", "--no-replace-objects", *args], cwd=root,
+                                   env=env, stderr=subprocess.DEVNULL)
+
 def staged_blobs(root):
     """Read the index, independently of later worktree edits or removals."""
     try:
-        entries = subprocess.check_output(["/usr/bin/git", "--no-replace-objects", "ls-files", "--stage", "-z"], cwd=root, stderr=subprocess.DEVNULL)
+        entries = git_output(root, "ls-files", "--stage", "-z")
         for entry in entries.split(b"\0"):
             if not entry:
                 continue
@@ -50,7 +57,7 @@ def staged_blobs(root):
             mode, oid, stage = metadata.split()
             if mode not in {b"100644", b"100755"} or stage != b"0":
                 raise ValueError("Git index requires publication review")
-            data = subprocess.check_output(["/usr/bin/git", "--no-replace-objects", "cat-file", "blob", oid.decode()], cwd=root, stderr=subprocess.DEVNULL)
+            data = git_output(root, "cat-file", "blob", oid.decode())
             yield raw_name.decode(), data
     except (OSError, subprocess.CalledProcessError, ValueError) as error:
         raise ValueError("Git index could not be safely inspected") from error
