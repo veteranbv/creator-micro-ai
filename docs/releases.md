@@ -50,12 +50,16 @@ interpreter that launched the release. Use a trusted Python 3.10 or newer and ve
 the configured Node installation locally. The signing Mac must also provide the
 system JSON test tool at `/usr/bin/jq`. Missing tools stop the release; it does not
 fall back to similarly named tools on PATH. No shell startup files are edited.
-The release checkout must not contain Git replacement references. Source checks
+The release checkout must have complete, non-shallow history and must not contain
+Git replacement references. Source checks
 and export also disable object replacement to preserve the reviewed commit's bytes.
 Tests run in a fresh temporary Git checkout of the reviewed revision, without the
 original checkout's ignored bytecode caches, local modules or build outputs.
 The temporary checkout fetches all local Git refs, including custom and remote-tracking
 refs, so the publication and ancestry tests retain the original history coverage.
+It checks that every original ref and object ID is present after the fetch.
+Hidden or changed refs stop the release instead of narrowing the audit; the command
+does not change ref-visibility settings or deepen shallow history automatically.
 Before and after tests, both checkouts' regular-file bytes and executable modes
 must match the reviewed tree. Index flags that hide changes (`assume-unchanged`
 or `skip-worktree`) are rejected. A clean Git status alone is not enough; filters
