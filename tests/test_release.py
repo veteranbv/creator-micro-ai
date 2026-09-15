@@ -45,6 +45,8 @@ class ReleaseTests(unittest.TestCase):
             raise RuntimeError("Synthetic failure")
         if label == "Check source revision":
             return REVISION
+        if label == "Check complete source history":
+            return "false"
         if label == "Check configured Node version":
             return "v22.0.0"
         if label == "Check source cleanliness":
@@ -167,14 +169,51 @@ class ReleaseTests(unittest.TestCase):
                        "commit-tree", tree, "-m", "Archived fixture").decode().strip()
         with patch.dict(os.environ, environment, clear=True), patch.object(release, "ROOT", root):
             release.test_reviewed_source(self.config, revision)
-            for reference in ("refs/archive/fixture", "refs/remotes/retired/fixture"):
+            for reference in ("refs/archive/fixture", "refs/remotes/retired/fixture", "refs/remotes/origin/main"):
                 with self.subTest(reference=reference):
                     git("update-ref", reference, archived)
+                    if reference == "refs/remotes/origin/main":
+                        git("symbolic-ref", "refs/remotes/origin/HEAD", reference)
+                        git("branch", "-m", "topic")
                     self.assertEqual(len(git("rev-list", "--all").splitlines()), 2)
                     with self.assertRaisesRegex(RuntimeError, "Run full test suite failed"):
                         release.test_reviewed_source(self.config, revision)
+                    for setting in ("uploadpack.hideRefs", "transfer.hideRefs"):
+                        with self.subTest(setting=setting):
+                            git("config", setting, reference)
+                            with self.assertRaisesRegex(RuntimeError, "publication refs"):
+                                release.test_reviewed_source(self.config, revision)
+                            self.assertEqual(git("config", "--get", setting).decode().strip(), reference)
+                            git("config", "--unset", setting)
                     self.assertEqual(git("rev-parse", reference).decode().strip(), archived)
                     git("update-ref", "-d", reference)
+
+    def test_shallow_checkout_stops_before_credentials(self):
+        environment = {"PATH": os.environ["PATH"], "HOME": str(self.root),
+                       "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+        def git(*args):
+            return subprocess.check_output(["/usr/bin/git", *args], cwd=self.root,
+                                           env=environment, stderr=subprocess.DEVNULL)
+        git("init", "-b", "main")
+        git("config", "user.name", "Fixture")
+        git("config", "user.email", "123+fixture@users.noreply.github.com")
+        git("add", "fixture")
+        git("-c", "commit.gpgsign=false", "commit", "-m", "Initial fixture")
+        git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Reviewed fixture")
+        revision = git("rev-parse", "HEAD").decode().strip()
+        with tempfile.TemporaryDirectory() as temporary:
+            checkout = pathlib.Path(temporary) / "shallow"
+            git("clone", "--no-local", "--depth=1", "--template=", str(self.root), str(checkout))
+            self.assertEqual(git("-C", str(checkout), "rev-parse", "--is-shallow-repository").strip(), b"true")
+            actual_run = release.run
+            def checked_run(label, *args, **kwargs):
+                if args[0] != "/usr/bin/git":
+                    self.fail("Shallow checkout reached credential or build tools")
+                return actual_run(label, *args, **kwargs)
+            with patch.dict(os.environ, environment, clear=True), patch.object(release, "ROOT", checkout), \
+                    patch.object(release, "run", side_effect=checked_run):
+                with self.assertRaisesRegex(RuntimeError, "complete Git history"):
+                    release.release(self.config, revision)
 
     def test_missing_or_relative_node_path_is_rejected(self):
         path = self.root / "config.json"

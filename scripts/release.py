@@ -91,6 +91,9 @@ def clean_revision(revision, root=None):
     root = ROOT if root is None else root
     if not re.fullmatch(r"[a-f0-9]{40}", revision):
         raise RuntimeError("Pass the full reviewed commit SHA with --revision.")
+    if run("Check complete source history", "/usr/bin/git", "--no-replace-objects", "rev-parse",
+           "--is-shallow-repository", cwd=root).strip() != "false":
+        raise RuntimeError("Release requires complete Git history. Use a non-shallow checkout.")
     if run("Check replacement refs", "/usr/bin/git", "--no-replace-objects", "for-each-ref",
            "--format=%(refname)", "refs/replace/", cwd=root).strip():
         raise RuntimeError("Git replacement references are not allowed in a release checkout.")
@@ -118,6 +121,8 @@ def clean_revision(revision, root=None):
 
 def test_reviewed_source(config, revision):
     """Run tests without importing ignored files from the maintainer's checkout."""
+    expected_refs = set(run("Read source publication refs", "/usr/bin/git", "--no-replace-objects",
+                            "for-each-ref", "--format=%(refname) %(objectname)", cwd=ROOT).splitlines())
     with tempfile.TemporaryDirectory(prefix="release-tests-") as temporary:
         source = pathlib.Path(temporary) / "source"
         run("Create isolated test checkout", "/usr/bin/git", "--no-replace-objects", "clone",
@@ -125,9 +130,16 @@ def test_reviewed_source(config, revision):
         run("Select reviewed test revision", "/usr/bin/git", "--no-replace-objects",
             "-c", "core.hooksPath=/dev/null", "-c", "core.autocrlf=false",
             "checkout", "--detach", revision, cwd=source)
+        # The clone's alias can target a different branch than the source's alias.
+        run("Remove generated remote alias", "/usr/bin/git", "--no-replace-objects",
+            "remote", "set-head", "origin", "--delete", cwd=source)
         run("Preserve all publication refs", "/usr/bin/git", "--no-replace-objects",
             "fetch", "--no-recurse-submodules", "--no-write-fetch-head", "origin",
             "+refs/*:refs/*", cwd=source)
+        actual_refs = set(run("Read isolated publication refs", "/usr/bin/git", "--no-replace-objects",
+                              "for-each-ref", "--format=%(refname) %(objectname)", cwd=source).splitlines())
+        if not expected_refs <= actual_refs:
+            raise RuntimeError("Isolated publication refs are incomplete or changed. Check Git ref visibility.")
         clean_revision(revision, root=source)
         run("Run full test suite", "/bin/bash", "scripts/test.sh", config["node"], sys.executable,
             "/usr/bin/jq", cwd=source)
