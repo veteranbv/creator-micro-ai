@@ -19,6 +19,23 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_braced_ascii_escapes_cannot_hide_url_authorities(self):
+        for padding in (0, 1, 4, 12):
+            def escaped(value):
+                return ("\\u{" + "0" * padding + format(value, "X") + "}").encode()
+            for host in (b"buildserver", b"source" + b".zip", b"release" + b".py"):
+                for slash in (escaped(47), escaped(92)):
+                    endpoint = b"https" + escaped(58) + slash + b"/" + host + b"/private"
+                    with self.subTest(padding=padding, host=host, slash=slash):
+                        self.assertTrue(content_findings("fixture.js", endpoint))
+                        self.assertTrue(content_findings("fixture.js", b"https://github.com/?next=" + endpoint))
+            self.assertFalse(content_findings("fixture.js", b"https" + escaped(58) + escaped(47) * 2 + b"github.com/example"))
+            for control in (9, 10, 13):
+                self.assertTrue(content_findings("fixture.js", b"ht" + escaped(control) + b"tps:/buildserver/private"))
+            self.assertTrue(content_findings("fixture.js", b"h" + escaped(116) + b"tps:/buildserver/private"))
+        for value in (br"\\u{}", br"\\u{xyz}", br"\\u{110000}", br"\\u{1f600}"):
+            self.assertFalse(content_findings("fixture.js", value))
+
     def test_url_controls_are_normalized_before_matching(self):
         controls = (b"\t", b"\r", b"\n", br"\t", br"\r", br"\n",
                     br"\u0009", br"\u000a", br"\u000D", br"\x09", br"\x0A", br"\x0d")

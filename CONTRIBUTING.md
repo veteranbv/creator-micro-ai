@@ -14,8 +14,9 @@ Put a space after `//` in source comments, including `// TODO:` and `// MARK:`.
 The publication scanner treats ambiguous no-space text as a possible address,
 even inside source files. It does not infer comments from line position or skip
 multiline strings. Its URL check also decodes escaped slashes, escaped dots and
-ASCII hex escapes in serialized text or regex literals. Decoded backslashes
-count as URL separators, and nested URLs are checked independently. HTTP, HTTPS,
+ASCII hex escapes, including braced Unicode escapes, in serialized text or regex
+literals. Decoded backslashes count as URL separators, and nested URLs are checked
+independently. HTTP, HTTPS,
 FTP, WS and WSS addresses are checked even without the usual two slashes. The URL
 check also removes ASCII tabs and newlines, including their short and hex escapes,
 in a separate scan view. The original text is still checked. A passing

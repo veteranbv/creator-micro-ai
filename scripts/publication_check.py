@@ -120,8 +120,8 @@ def content_findings(name, data, *, path_context=False):
     member_spans, path_spans = python_reference_spans(name, data)
     # Scan a decoded view for serialized URLs, without changing source offsets.
     # Be conservative: source comments and multiline strings are not exempt.
-    url_data = re.sub(rb"\\+(?:[/.]|u00([0-9a-fA-F]{2})|x([0-9a-fA-F]{2}))",
-                      lambda m: bytes([int(m[1] or m[2], 16)]).replace(b"\\", b"/") if m[1] or m[2] else m.group()[-1:], data)
+    url_data = re.sub(rb"\\+(?:[/.]|u00([0-9a-fA-F]{2})|x([0-9a-fA-F]{2})|u\{0*([0-7]?[0-9a-fA-F])\})",
+                      lambda m: bytes([int(m[1] or m[2] or m[3], 16)]).replace(b"\\", b"/") if any(m.groups()) else m.group()[-1:], data)
     # WHATWG parsing removes ASCII tabs and newlines, including inside schemes.
     # Retain the original view so joining separate lines cannot hide a match.
     normalized = re.sub(rb"\\+[trn]", b"", url_data).translate(None, b"\t\r\n")
