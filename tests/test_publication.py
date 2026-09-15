@@ -19,6 +19,88 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_escape_normalization_is_bounded_and_preserves_unknown_forms(self):
+        for source, expected in ((br"\377", bytes([255])), (br"\400", b" 0"),
+                                 (br"\777", b"?7"), (br"\08", b"\0" + b"8"),
+                                 (br"\b\f\n\r\t\v", b"\b\f\n\r\t\v"),
+                                 (br"\h\:\/\.", b"h:/."),
+                                 (br"\u005cu003a", b"/u003a")):
+            with self.subTest(source=source):
+                self.assertEqual(publication_check.url_scan_view(source), expected)
+        for value in (br"\u{}", br"\u{xyz}", br"\u{110000}", br"\u{1f600}", br"\u0080", br"\u00ff", br"\u0100", br"\xZ0", b"trailing\\"):
+            self.assertEqual(publication_check.url_scan_view(value), value)
+
+    def test_escape_families_cannot_hide_url_components(self):
+        encoders = (
+            lambda value: ("\\%o" % value).encode(),
+            lambda value: ("\\%03o" % value).encode(),
+            lambda value: ("\\x%02x" % value).encode(),
+            lambda value: ("\\u%04x" % value).encode(),
+            lambda value: ("\\u{000%x}" % value).encode(),
+        )
+        for encode in encoders:
+            for host in (b"buildserver", b"source" + b".zip", b"[fd00::1]"):
+                plain = b"https://" + host + b"/private"
+                variants = [b"".join(encode(value) for value in plain)]
+                variants += [plain[:index] + encode(value) + plain[index + 1:]
+                             for index, value in enumerate(plain)]
+                for endpoint in variants:
+                    with self.subTest(endpoint=endpoint):
+                        self.assertTrue(content_findings("fixture.js", endpoint))
+                        self.assertTrue(content_findings("fixture.js", b"https://github.com/?next=" + endpoint))
+            allowed = b"https://github.com/example"
+            self.assertFalse(content_findings("fixture.js", b"".join(encode(value) for value in allowed)))
+        for endpoint in (br"\https\:\/\/" + b"buildserver/private", br"http\s://" + b"buildserver/private"):
+            self.assertTrue(content_findings("fixture.js", endpoint))
+        for newline in (b"\n", b"\r", b"\r\n", "\u2028".encode(), "\u2029".encode()):
+            for endpoint in (b"ht\\" + newline + b"tps://" + b"buildserver/private",
+                             b"https://github.com\\" + newline + b"@buildserver/private"):
+                self.assertTrue(content_findings("fixture.js", endpoint))
+
+    def test_replacements_cannot_hide_index_tree_commit_or_tag_bytes(self):
+        with tempfile.TemporaryDirectory(prefix="publication-replacement-test-") as directory:
+            root = pathlib.Path(directory)
+            env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+            def git(*args, input=None):
+                return subprocess.check_output(["/usr/bin/git", *args], cwd=root, env=env,
+                                               input=input, stderr=subprocess.DEVNULL)
+            git("init", "-b", "main")
+            git("config", "user.name", "Fixture")
+            git("config", "user.email", "123+fixture@users.noreply.github.com")
+            original = b"-----BEGIN " + b"PRIVATE KEY-----\nSynthetic fixture only\n"
+            bad_blob = git("hash-object", "-w", "--stdin", input=original).strip()
+            safe_blob = git("hash-object", "-w", "--stdin", input=b"Safe fixture\n").strip()
+            def tree(blob):
+                return git("mktree", input=b"100644 blob " + blob + b"\tfixture.txt\n").strip()
+            bad_tree, safe_tree = tree(bad_blob), tree(safe_blob)
+            bad_commit = git("commit-tree", bad_tree.decode(), input=original).strip()
+            safe_commit = git("commit-tree", safe_tree.decode(), input=b"Safe fixture\n").strip()
+            def tag(blob, message):
+                return git("mktag", input=b"object " + blob + b"\ntype blob\ntag fixture\n"
+                           b"tagger Fixture <123+fixture@users.noreply.github.com> 1 +0000\n\n" + message).strip()
+            bad_tag, safe_tag = tag(bad_blob, original), tag(safe_blob, b"Safe fixture\n")
+            git("update-ref", "refs/heads/main", bad_commit.decode())
+            git("update-ref", "refs/tags/fixture", bad_tag.decode())
+            git("update-index", "--add", "--cacheinfo", "100644", bad_blob.decode(), "fixture.txt")
+            (root / "fixture.txt").write_bytes(b"Safe fixture\n")
+            for bad, safe in ((bad_blob, safe_blob), (bad_tree, safe_tree),
+                              (bad_commit, safe_commit), (bad_tag, safe_tag)):
+                git("replace", bad.decode(), safe.decode())
+                self.assertEqual(git("cat-file", "-p", bad.decode()), git("cat-file", "-p", safe.decode()))
+            with self.subTest(reader="index"):
+                self.assertEqual(dict(privacy_check.staged_blobs(root))["fixture.txt"], original)
+            with mock.patch.object(publication_check, "ROOT", root):
+                with self.subTest(reader="tree"):
+                    self.assertTrue(publication_check.tree_findings(bad_commit.decode(), set()))
+                with self.subTest(reader="commit"):
+                    self.assertIn(original, publication_check.git("show", "-s", "--format=%B", bad_commit.decode()))
+                with self.subTest(reader="tag"):
+                    self.assertTrue(publication_check.tag_findings())
+            for checker in (privacy_check, publication_check):
+                with self.subTest(checker=checker.__name__), mock.patch.object(checker, "ROOT", root), \
+                        mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(checker.main(), 1)
+
     def test_braced_ascii_escapes_cannot_hide_url_authorities(self):
         for padding in (0, 1, 4, 12):
             def escaped(value):
@@ -111,7 +193,9 @@ class PublicationTests(unittest.TestCase):
                         self.assertTrue(content_findings("README.md", b"https://github.com/?next=" + endpoint))
             for separator in (b"", b"/", b"///", bytes([92]), br"\/"):
                 self.assertFalse(content_findings("fixture.json", scheme + separator + b"github.com/example"))
-        self.assertFalse(content_findings("fixture.json", b"https:" + bytes([92]) + b"github.com" + bytes([92]) + b"example"))
+        # A literal URL separator and a JS identity escape imply different hosts.
+        # The potentially unapproved interpretation requires publication review.
+        self.assertTrue(content_findings("fixture.json", b"https:" + bytes([92]) + b"github.com" + bytes([92]) + b"example"))
 
     def test_staged_archive_is_checked_when_worktree_is_clean_or_missing(self):
         archive = io.BytesIO()

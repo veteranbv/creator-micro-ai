@@ -42,7 +42,7 @@ def findings(path, data):
 def staged_blobs(root):
     """Read the index, independently of later worktree edits or removals."""
     try:
-        entries = subprocess.check_output(["git", "ls-files", "--stage", "-z"], cwd=root, stderr=subprocess.DEVNULL)
+        entries = subprocess.check_output(["/usr/bin/git", "--no-replace-objects", "ls-files", "--stage", "-z"], cwd=root, stderr=subprocess.DEVNULL)
         for entry in entries.split(b"\0"):
             if not entry:
                 continue
@@ -50,7 +50,7 @@ def staged_blobs(root):
             mode, oid, stage = metadata.split()
             if mode not in {b"100644", b"100755"} or stage != b"0":
                 raise ValueError("Git index requires publication review")
-            data = subprocess.check_output(["git", "cat-file", "blob", oid.decode()], cwd=root, stderr=subprocess.DEVNULL)
+            data = subprocess.check_output(["/usr/bin/git", "--no-replace-objects", "cat-file", "blob", oid.decode()], cwd=root, stderr=subprocess.DEVNULL)
             yield raw_name.decode(), data
     except (OSError, subprocess.CalledProcessError, ValueError) as error:
         raise ValueError("Git index could not be safely inspected") from error
