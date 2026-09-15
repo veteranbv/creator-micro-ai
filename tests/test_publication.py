@@ -19,6 +19,48 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_git_environment_preserves_path_and_removes_overrides(self):
+        env = {"PATH": os.environ["PATH"], "GIT_INDEX_FILE": "alternate-index",
+               "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "core.worktree",
+               "GIT_CONFIG_VALUE_0": "other-checkout"}
+        with mock.patch.dict(os.environ, env, clear=True), \
+                mock.patch.object(subprocess, "check_output", return_value=b"fixture") as call:
+            self.assertEqual(privacy_check.git_output(pathlib.Path("."), "rev-parse", "HEAD"), b"fixture")
+        self.assertEqual(call.call_args.kwargs["env"], {"PATH": env["PATH"]})
+        self.assertEqual(call.call_args.args[0], ["/usr/bin/git", "--no-replace-objects", "rev-parse", "HEAD"])
+
+    def test_git_environment_cannot_redirect_publication_reads(self):
+        with tempfile.TemporaryDirectory(prefix="publication-environment-test-") as directory:
+            top = pathlib.Path(directory)
+            root, other = top / "checkout", top / "other"
+            env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+            def git(*args, cwd=root):
+                return subprocess.check_output(["/usr/bin/git", *args], cwd=cwd, env=env, stderr=subprocess.DEVNULL)
+            for checkout in (root, other):
+                checkout.mkdir()
+                git("init", "-b", "main", cwd=checkout)
+                git("config", "user.name", "Fixture", cwd=checkout)
+                git("config", "user.email", "123+fixture@users.noreply.github.com", cwd=checkout)
+                (checkout / "fixture.txt").write_bytes(b"Safe fixture\n")
+                git("add", "fixture.txt", cwd=checkout)
+                git("-c", "commit.gpgsign=false", "commit", "-m", "Safe fixture", cwd=checkout)
+            alternate = top / "alternate-index"
+            alternate.write_bytes((root / ".git/index").read_bytes())
+            private = b"-----BEGIN " + b"PRIVATE KEY-----\nSynthetic fixture\n"
+            (root / "fixture.txt").write_bytes(private)
+            git("add", "fixture.txt")
+            (root / "fixture.txt").write_bytes(b"Safe fixture\n")
+            for override in ({"GIT_INDEX_FILE": str(alternate)},
+                             {"GIT_DIR": str(other / ".git"), "GIT_WORK_TREE": str(other)}):
+                with self.subTest(override=override), mock.patch.dict(os.environ, override):
+                    self.assertEqual(dict(privacy_check.staged_blobs(root))["fixture.txt"], private)
+                    for checker in (privacy_check, publication_check):
+                        output = io.StringIO()
+                        with mock.patch.object(checker, "ROOT", root), \
+                                mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(output):
+                            self.assertEqual(checker.main(), 1)
+                        self.assertNotIn(private.decode(), output.getvalue())
+
     def test_non_utf8_git_metadata_cannot_skip_publication_review(self):
         with tempfile.TemporaryDirectory(prefix="publication-encoding-test-") as directory:
             root = pathlib.Path(directory)
@@ -54,7 +96,8 @@ class PublicationTests(unittest.TestCase):
     def test_repeated_backslashes_preserve_private_url_authorities(self):
         for scheme in (b"ssh:", b"custom:", b"https:", b""):
             for count in (2, 3, 4, 8):
-                for host in (b"buildserver", b"fileserver", b"node", b"router", b"[fd00::1]"):
+                for host in (b"buildserver", b"fileserver", b"node", b"router", b"[fd00::1]",
+                             b"x12server", b"u0012server", b"123server", b"40server", b"777server"):
                     endpoint = scheme + b"\\" * count + host + b"/private"
                     with self.subTest(endpoint=endpoint):
                         self.assertTrue(content_findings("fixture.js", endpoint))
