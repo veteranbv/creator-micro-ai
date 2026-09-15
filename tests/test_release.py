@@ -1,4 +1,6 @@
 """Test release orchestration without accessing any real keychain or service."""
+import contextlib
+import hashlib
 import importlib.util
 import io
 import json
@@ -52,6 +54,10 @@ class ReleaseTests(unittest.TestCase):
         if label == "Export exact source revision":
             with zipfile.ZipFile(args[-2].removeprefix("--output="), "w") as archive:
                 archive.writestr("fixture", "synthetic source")
+        if label == "Read reviewed source tree":
+            data = b"synthetic source"
+            oid = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+            return f"100644 blob {oid}\tfixture\0"
         if label == "Build both Mac architectures":
             app = pathlib.Path(kwargs["cwd"]) / "build/Creator Micro AI.app/Contents"
             app.mkdir(parents=True)
@@ -168,6 +174,74 @@ class ReleaseTests(unittest.TestCase):
         restore = next(args for label, args in self.calls if label == "Restore keychain search list")
         self.assertEqual(restore[-1], "/synthetic/login.keychain-db")
         self.assertFalse(any("export" in args or "unlock-keychain" in args for _, args in self.calls))
+
+    def test_real_git_attributes_cannot_change_release_source(self):
+        checkout = self.root / "checkout"
+        checkout.mkdir()
+        environment = {"PATH": os.environ["PATH"], "HOME": str(self.root),
+                       "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+        def git(*args):
+            return subprocess.check_output(["/usr/bin/git", *args], cwd=checkout,
+                                           env=environment, stderr=subprocess.DEVNULL)
+        git("init", "-b", "main")
+        git("config", "user.name", "Fixture")
+        git("config", "user.email", "123+fixture@users.noreply.github.com")
+        original = b"reviewed $Format:%H$\n"
+        (checkout / "fixture").write_bytes(original)
+        (checkout / "nested").mkdir()
+        (checkout / "nested/binary fixture").write_bytes(b"\0\xff\r\n")
+        git("add", "fixture", "nested")
+        git("-c", "commit.gpgsign=false", "commit", "-m", "Reviewed fixture")
+        reviewed = git("rev-parse", "HEAD").decode().strip()
+        def checked_run(label, *args, **kwargs):
+            if args[0] == "/usr/bin/git":
+                self.calls.append((label, args))
+                return git(*args[1:]).decode()
+            return self.command(label, *args, **kwargs)
+        for location in ("local", "configured"):
+            attributes = checkout / ".git/info/attributes" if location == "local" else self.root / "attributes"
+            git("config", "core.attributesFile", str(attributes))
+            for attribute in ("export-ignore", "export-subst"):
+                with self.subTest(location=location, attribute=attribute):
+                    output_root = self.root / f"{location}-{attribute}"
+                    output_root.mkdir()
+                    attributes.write_text(f"fixture {attribute}\n")
+                    self.assertEqual(git("status", "--porcelain"), b"")
+                    with zipfile.ZipFile(io.BytesIO(git("archive", "--format=zip", reviewed))) as handle:
+                        if attribute == "export-ignore":
+                            self.assertNotIn("fixture", handle.namelist())
+                        else:
+                            self.assertNotEqual(handle.read("fixture"), original)
+                    self.calls.clear()
+                    with patch.object(release, "ROOT", output_root), patch.object(release, "run", side_effect=checked_run):
+                        with self.assertRaisesRegex(RuntimeError, "reviewed tree"):
+                            release.release(self.config, reviewed)
+                    self.assertNotIn("Build both Mac architectures", [label for label, _ in self.calls])
+                    self.assertNotIn("Sign using local keychain", [label for label, _ in self.calls])
+                    self.assertEqual(list((output_root / "build/releases").iterdir()), [])
+            attributes.unlink()
+        archive = self.root / "source.zip"
+        archive.write_bytes(git("archive", "--format=zip", reviewed))
+        source = self.root / "extracted"
+        with patch.object(release, "run", side_effect=checked_run):
+            release.extract_reviewed_source(archive, source, reviewed)
+        self.assertEqual((source / "fixture").read_bytes(), original)
+        self.assertEqual((source / "nested/binary fixture").read_bytes(), b"\0\xff\r\n")
+
+    def test_source_archive_rejects_changed_paths_and_bytes_before_extraction(self):
+        original = ("fixture", b"synthetic source")
+        for entries in ([], [("fixture", b"changed")], [original, ("extra", b"extra")],
+                        [original, original], [("../escape", b"extra")], [original, ("extra/", b"")]):
+            with self.subTest(entries=entries):
+                archive = self.root / "source.zip"
+                source = self.root / "extracted"
+                with contextlib.redirect_stderr(io.StringIO()), zipfile.ZipFile(archive, "w") as handle:
+                    for name, data in entries:
+                        handle.writestr(name, data)
+                with patch.object(release, "run", side_effect=self.command):
+                    with self.assertRaisesRegex(RuntimeError, "reviewed tree"):
+                        release.extract_reviewed_source(archive, source, REVISION)
+                self.assertFalse(source.exists())
 
     def test_failures_never_leave_a_release_or_temporary_material(self):
         for label in ("Sign using local keychain", "Verify Developer ID and bundle identity",

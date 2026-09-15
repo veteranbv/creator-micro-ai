@@ -99,6 +99,40 @@ def clean_revision(revision):
         raise RuntimeError("Commit or remove source changes before releasing.")
 
 
+def extract_reviewed_source(archive, source, revision):
+    """Reject export attributes that omit or rewrite reviewed source files."""
+    tree = run("Read reviewed source tree", "/usr/bin/git", "--no-replace-objects",
+               "ls-tree", "-rz", "--full-tree", revision)
+    expected, directories = {}, set()
+    for record in tree.split("\0"):
+        if not record:
+            continue
+        metadata, name = record.split("\t", 1)
+        mode, kind, oid = metadata.split()
+        if kind != "blob" or mode not in {"100644", "100755"}:
+            raise RuntimeError("The reviewed tree must contain only regular source files.")
+        expected[name] = oid
+        directories.update(str(parent) + "/" for parent in pathlib.PurePosixPath(name).parents if str(parent) != ".")
+    with zipfile.ZipFile(archive) as handle:
+        seen, files = set(), set()
+        for entry in handle.infolist():
+            name = entry.filename
+            if name in seen or name not in (directories if entry.is_dir() else expected):
+                raise RuntimeError("Source archive paths do not match the reviewed tree.")
+            seen.add(name)
+            if entry.is_dir():
+                continue
+            data = handle.read(entry)
+            # Git blob IDs include the object type and byte length, not just data.
+            oid = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+            if oid != expected[name]:
+                raise RuntimeError("Source archive bytes do not match the reviewed tree. Check Git export attributes.")
+            files.add(name)
+        if files != expected.keys():
+            raise RuntimeError("Source archive is missing files from the reviewed tree. Check Git export attributes.")
+        handle.extractall(source)
+
+
 def verify(app, config):
     # codesign treats a leading '=' as inline source; without it this is a filename.
     requirement = (f'=anchor apple generic and identifier "{BUNDLE_ID}" and '
@@ -150,8 +184,7 @@ def release(config, revision, password=None):
         archive = stage / "source.zip"
         run("Export exact source revision", "/usr/bin/git", "--no-replace-objects", "archive", "--format=zip", f"--output={archive}", revision)
         source = stage / "source"
-        with zipfile.ZipFile(archive) as bundle:
-            bundle.extractall(source)
+        extract_reviewed_source(archive, source, revision)
         run("Build both Mac architectures", "/bin/bash", "scripts/build.sh", "--universal", cwd=source)
         app = source / "build/Creator Micro AI.app"
         info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
