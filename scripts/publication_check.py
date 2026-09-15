@@ -122,9 +122,13 @@ def content_findings(name, data, *, path_context=False):
     # Be conservative: source comments and multiline strings are not exempt.
     url_data = re.sub(rb"\\+(?:[/.]|u00([0-9a-fA-F]{2})|x([0-9a-fA-F]{2}))",
                       lambda m: bytes([int(m[1] or m[2], 16)]).replace(b"\\", b"/") if m[1] or m[2] else m.group()[-1:], data)
-    for match in URL.finditer(url_data):
+    # WHATWG parsing removes ASCII tabs and newlines, including inside schemes.
+    # Retain the original view so joining separate lines cannot hide a match.
+    normalized = re.sub(rb"\\+[trn]", b"", url_data).translate(None, b"\t\r\n")
+    for match in URL.finditer(url_data + b"\n" + normalized):
         # Only visibly generic secret-reference examples belong in public docs.
-        if re.fullmatch(rb"op:/{2}YOUR_[A-Z_]+/YOUR_[A-Z_]+/[a-z-]+", match[1]):
+        # Markdown's closing code fence may adjoin the example in the joined view.
+        if re.fullmatch(rb"op:/{2}YOUR_[A-Z_]+/YOUR_[A-Z_]+/[a-z-]+", match[1].split(b"`", 1)[0]):
             continue
         # WHATWG network schemes accept missing or repeated slash/backslash
         # separators. Normalize those forms before the strict authority parser.

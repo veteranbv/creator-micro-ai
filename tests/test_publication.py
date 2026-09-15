@@ -19,6 +19,28 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_url_controls_are_normalized_before_matching(self):
+        controls = (b"\t", b"\r", b"\n", br"\t", br"\r", br"\n",
+                    br"\u0009", br"\u000a", br"\u000D", br"\x09", br"\x0A", br"\x0d")
+        for control in controls:
+            for scheme in (b"http", b"https", b"ftp", b"ws", b"wss"):
+                for parts in ((scheme[:1], scheme[1:] + b":/buildserver/private"),
+                              (scheme + b":", b"/buildserver/private"),
+                              (scheme + b":/", b"/buildserver/private"),
+                              (scheme + b"://build", b"server/private"),
+                              (scheme + b"://github.com", b"@buildserver/private")):
+                    endpoint = control.join(parts)
+                    with self.subTest(control=control, scheme=scheme, parts=parts):
+                        self.assertTrue(content_findings("fixture.js", endpoint))
+                        self.assertTrue(content_findings("fixture.js", b"https://github.com/?next=" + endpoint))
+            self.assertFalse(content_findings("fixture.js", b"ht" + control + b"tps://github.com/example"))
+        # Keep the original view too: joining lines must not hide a bare host.
+        self.assertTrue(content_findings("README.md", b"word\n//" + b"buildserver/private"))
+        example = b"op://YOUR_VAULT/YOUR_ITEM/password"
+        self.assertFalse(content_findings("README.md", b"```dotenv\nPASSWORD=" + example + b"\n```\nInstructions"))
+        self.assertTrue(content_findings("README.md", example + b"`\nhttps:" + b"/buildserver/private"))
+        self.assertTrue(content_findings("README.md", b"op://" + b"YOUR_VAULT/private-item/password`"))
+
     def test_comment_spacing_never_exempts_multiline_string_hosts(self):
         for name in ("fixture.swift", "fixture.js"):
             for comment in (b"/" + b"/TODO: revisit", b"  /" + b"/MARK: Controls", b"/" + b"/explanation of behavior"):
