@@ -54,7 +54,8 @@ The release checkout must not contain Git replacement references. Source checks
 and export also disable object replacement to preserve the reviewed commit's bytes.
 Tests run in a fresh temporary Git checkout of the reviewed revision, without the
 original checkout's ignored bytecode caches, local modules or build outputs.
-The temporary checkout keeps Git history for the publication and ancestry tests.
+The temporary checkout fetches all local Git refs, including custom and remote-tracking
+refs, so the publication and ancestry tests retain the original history coverage.
 Before and after tests, both checkouts' regular-file bytes and executable modes
 must match the reviewed tree. Index flags that hide changes (`assume-unchanged`
 or `skip-worktree`) are rejected. A clean Git status alone is not enough; filters
