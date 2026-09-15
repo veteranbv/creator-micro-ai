@@ -23,9 +23,12 @@ hostname takes precedence even when its prefix looks like a numeric escape. Malf
 numeric values and non-ASCII Unicode values are not decoded. Decoded backslashes
 count as URL separators, not a request to decode another layer. Nested URLs are
 checked independently. HTTP, HTTPS, FTP, WS and WSS addresses are checked even
-without the usual two slashes. A second view removes ASCII tabs and newlines;
-the first decoded view remains checked. Domain, email and credential checks also
-inspect the original bytes. This is not a source-language parser: it does not
+without the usual two slashes. Scheme-relative addresses can start with more
+than two slashes. A second URL view removes ASCII tabs and newlines;
+the first decoded view remains checked. Domain and email checks inspect both
+original and escape-decoded text. Source-reference exceptions retain their original
+locations after decoding, so a real path cannot exempt a separate endpoint.
+Credential checks inspect the original bytes. This is not a source-language parser: it does not
 execute code, join expressions, expand templates or decode arbitrary encodings.
 A passing scan is not proof that all private data has been detected. Review the
 content before publication. Ambiguous backslashes can require review even when
