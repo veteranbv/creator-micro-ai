@@ -20,15 +20,11 @@ BUNDLE_ID = "community.creatormicroai.helper"
 
 def run(label, *command, cwd=ROOT, timeout=1200, input=None):
     print(label, flush=True)
-    # Build tools need the user's toolchain paths, not the invoking shell's secrets.
+    # Preserve PATH, but invoke release tools and their build children explicitly.
     environment = {key: value for key, value in os.environ.items() if key in {
         "PATH", "HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL",
         "MACOSX_DEPLOYMENT_TARGET",
     }}
-    # Only source test/build scripts may select a custom Xcode toolchain.
-    # In particular, xcrun must not resolve release tools from these overrides.
-    if command[0] == "bash":
-        environment.update({key: os.environ[key] for key in ("DEVELOPER_DIR", "SDKROOT") if key in os.environ})
     try:
         with subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                               stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
@@ -72,13 +68,17 @@ def settings(path):
         config = json.loads(path.read_text())
     except (OSError, ValueError) as error:
         raise RuntimeError("Cannot read release settings. See docs/releases.md.") from error
-    required = {"identity", "team_id", "keychain", "notary_profile"}
+    required = {"identity", "team_id", "keychain", "notary_profile", "node"}
     if not isinstance(config, dict) or set(config) not in (required, required | {"notary_keychain"}):
         raise RuntimeError("Release settings have missing or unknown fields.")
     if not all(isinstance(value, str) and value.strip() and "\n" not in value for value in config.values()):
         raise RuntimeError("Release settings must contain nonempty single-line strings.")
     if not re.fullmatch(r"[A-Fa-f0-9]{40}", config["identity"]) or not re.fullmatch(r"[A-Z0-9]{10}", config["team_id"]):
         raise RuntimeError("Expected a certificate SHA-1 fingerprint and a ten-character team ID.")
+    node = pathlib.Path(config["node"])
+    if not node.is_absolute() or not node.is_file() or not os.access(node, os.X_OK):
+        raise RuntimeError("Configure an absolute executable path to trusted Node 22 or newer.")
+    config["node"] = str(node.resolve())
     for field in ("keychain", "notary_keychain"):
         if field in config:
             config[field] = str(pathlib.Path(config[field]).expanduser().resolve())
@@ -126,6 +126,10 @@ def sign(app, config):
 
 def release(config, revision, password=None):
     clean_revision(revision)
+    node_version = run("Check configured Node version", config["node"], "--version").strip()
+    if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", node_version) or int(node_version[1:].split(".")[0]) < 22:
+        raise RuntimeError("The configured Node executable must be version 22 or newer.")
+    run("Check system JSON test tool", "/usr/bin/jq", "--version")
     identities = run("Check local signing identity", "/usr/bin/security", "find-identity", "-v", "-p",
                      "codesigning", config["keychain"])
     matches = [line for line in identities.splitlines()
@@ -137,7 +141,7 @@ def release(config, revision, password=None):
         auth += ["--keychain", config["notary_keychain"]]
     run("Check saved notarization credentials", "/usr/bin/xcrun", "notarytool", "history", *auth,
         "--output-format", "json", timeout=120)
-    run("Run full test suite", "bash", "scripts/test.sh")
+    run("Run full test suite", "/bin/bash", "scripts/test.sh", config["node"], sys.executable)
     clean_revision(revision)
     output = ROOT / "build/releases"
     output.mkdir(parents=True, exist_ok=True)
@@ -148,7 +152,7 @@ def release(config, revision, password=None):
         source = stage / "source"
         with zipfile.ZipFile(archive) as bundle:
             bundle.extractall(source)
-        run("Build both Mac architectures", "bash", "scripts/build.sh", "--universal", cwd=source)
+        run("Build both Mac architectures", "/bin/bash", "scripts/build.sh", "--universal", cwd=source)
         app = source / "build/Creator Micro AI.app"
         info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
         version = info.get("CFBundleShortVersionString", "")

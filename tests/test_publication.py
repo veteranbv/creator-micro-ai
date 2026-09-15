@@ -353,7 +353,7 @@ class PublicationTests(unittest.TestCase):
             root = pathlib.Path(directory)
             env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
             def git(*args):
-                return subprocess.check_output(["git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
+                return subprocess.check_output(["/usr/bin/git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
             git("init", "-b", "main")
             git("config", "user.name", "Fixture")
             git("config", "user.email", "123+fixture@users.noreply.github.com")
@@ -433,7 +433,7 @@ class PublicationTests(unittest.TestCase):
             root = pathlib.Path(directory)
             env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
             def git(*args):
-                return subprocess.check_output(["git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
+                return subprocess.check_output(["/usr/bin/git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
             git("init", "-b", "main")
             git("config", "user.name", "Fixture")
             git("config", "user.email", "123+fixture@users.noreply.github.com")
@@ -479,7 +479,7 @@ class PublicationTests(unittest.TestCase):
             root = pathlib.Path(directory)
             env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
             def git(*args):
-                return subprocess.check_output(["git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
+                return subprocess.check_output(["/usr/bin/git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
             git("init", "-b", "main")
             git("config", "user.name", "Fixture")
             git("config", "user.email", "123+fixture@users.noreply.github.com")
@@ -530,7 +530,7 @@ class PublicationTests(unittest.TestCase):
             root = pathlib.Path(directory)
             env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
             def git(*args):
-                return subprocess.check_output(["git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
+                return subprocess.check_output(["/usr/bin/git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL)
             git("init", "-b", "main")
             git("config", "user.name", "Fixture")
             git("config", "user.email", "123+fixture@users.noreply.github.com")
@@ -561,8 +561,8 @@ class PublicationTests(unittest.TestCase):
                        "GIT_AUTHOR_EMAIL": "123+fixture@users.noreply.github.com",
                        "GIT_COMMITTER_EMAIL": "123+fixture@users.noreply.github.com"}
                 env[field] = "private-project" + ".ai"
-                subprocess.run(["git", "init", "-b", "main"], cwd=root, env=env, check=True, capture_output=True)
-                subprocess.run(["git", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Public fixture"],
+                subprocess.run(["/usr/bin/git", "init", "-b", "main"], cwd=root, env=env, check=True, capture_output=True)
+                subprocess.run(["/usr/bin/git", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Public fixture"],
                                cwd=root, env=env, check=True, capture_output=True)
                 output = io.StringIO()
                 with mock.patch.object(publication_check, "ROOT", root), mock.patch.object(sys, "argv", ["check", "--all-history"]), contextlib.redirect_stdout(output):
@@ -581,7 +581,7 @@ class PublicationTests(unittest.TestCase):
             root = pathlib.Path(directory)
             env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
             def git(*args):
-                return subprocess.check_output(["git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL).decode().strip()
+                return subprocess.check_output(["/usr/bin/git", *args], cwd=root, env=env, stderr=subprocess.DEVNULL).decode().strip()
             git("init", "-b", "main")
             git("config", "user.name", "Fixture")
             git("config", "user.email", "123+fixture@users.noreply.github.com")
@@ -690,7 +690,7 @@ class PublicationTests(unittest.TestCase):
             root = pathlib.Path(directory)
             env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
             def git(*args):
-                subprocess.run(["git", *args], cwd=root, env=env, check=True, capture_output=True)
+                subprocess.run(["/usr/bin/git", *args], cwd=root, env=env, check=True, capture_output=True)
             git("init", "-b", "main")
             git("config", "user.name", "Fixture")
             git("config", "user.email", "123+fixture@users.noreply.github.com")
@@ -711,7 +711,7 @@ class PublicationTests(unittest.TestCase):
             root = pathlib.Path(directory)
             env = {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
             def git(*args):
-                subprocess.run(["git", *args], cwd=root, env=env, check=True, capture_output=True)
+                subprocess.run(["/usr/bin/git", *args], cwd=root, env=env, check=True, capture_output=True)
             git("init", "-b", "main")
             git("config", "user.name", "Fixture")
             git("config", "user.email", "123+fixture@users.noreply.github.com")

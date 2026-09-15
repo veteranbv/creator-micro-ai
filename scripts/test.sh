@@ -1,33 +1,41 @@
 #!/bin/bash
 set -euo pipefail
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="$(cd "$(/usr/bin/dirname "$0")/.." && pwd)"
 cd "$root"
-node --test tests/*.test.js
-python3 -m unittest discover -s .github/scripts -p 'test_*.py'
-python3 -m unittest discover -s tests -p 'test_*.py'
-python3 scripts/privacy_check.py
-python3 scripts/publication_check.py --all-history
-if [[ "$(uname -s)" == Darwin ]]; then
-  mkdir -p build/tests build/module-cache
-  swiftc helper/Sources/HelperHealth.swift tests/helper-health.swift \
+if [[ $# != 0 && $# != 2 ]]; then echo 'Usage: bash scripts/test.sh [ABSOLUTE_NODE ABSOLUTE_PYTHON]' >&2; exit 1; fi
+node="${1:-node}"
+python="${2:-python3}"
+if [[ $# == 2 && ( "$node" != /* || "$python" != /* ) ]]; then
+  echo 'Explicit test interpreters must use absolute paths.' >&2; exit 1
+fi
+"$node" --test tests/*.test.js
+"$python" -m unittest discover -s .github/scripts -p 'test_*.py'
+"$python" -m unittest discover -s tests -p 'test_*.py'
+"$python" scripts/privacy_check.py
+"$python" scripts/publication_check.py --all-history
+if [[ "$(/usr/bin/uname -s)" == Darwin ]]; then
+  /bin/mkdir -p build/tests build/module-cache
+  compiler=$(/usr/bin/xcrun --find swiftc)
+  sdk=$(/usr/bin/xcrun --sdk macosx --show-sdk-path)
+  "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/HelperHealth.swift tests/helper-health.swift \
     -module-cache-path build/module-cache -o build/tests/helper-health
   build/tests/helper-health
-  swiftc helper/Sources/BridgePipe.swift tests/bridge-pipe.swift \
+  "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/BridgePipe.swift tests/bridge-pipe.swift \
     -module-cache-path build/module-cache -o build/tests/bridge-pipe
   build/tests/bridge-pipe
-  swiftc helper/Sources/ControllerActions.swift tests/controller-targets.swift \
+  "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/ControllerActions.swift tests/controller-targets.swift \
     -module-cache-path build/module-cache -framework Carbon -framework AppKit -o build/tests/controller-targets
   build/tests/controller-targets
-  swiftc helper/Sources/WorkspaceShortcut.swift tests/shortcut-events.swift \
+  "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/WorkspaceShortcut.swift tests/shortcut-events.swift \
     -module-cache-path build/module-cache -o build/tests/shortcut-events
   build/tests/shortcut-events
-  swiftc helper/Sources/LayerSelection.swift tests/layer-selection.swift \
+  "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/LayerSelection.swift tests/layer-selection.swift \
     -module-cache-path build/module-cache -o build/tests/layer-selection
   build/tests/layer-selection
-  swiftc helper/Sources/WorkspaceSelection.swift tests/workspace-selection.swift \
+  "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/WorkspaceSelection.swift tests/workspace-selection.swift \
     -module-cache-path build/module-cache -o build/tests/workspace-selection
   build/tests/workspace-selection
-  bash scripts/build.sh --universal
+  /bin/bash scripts/build.sh --universal
 else
   echo 'Swift/AppKit tests require macOS. CI runs them in the macOS job.'
 fi

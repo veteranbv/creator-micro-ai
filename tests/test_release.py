@@ -26,7 +26,8 @@ class ReleaseTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = pathlib.Path(temporary.name).resolve()
         self.config = {"identity": "B" * 40, "team_id": "TESTTEAM01",
-                       "keychain": str(self.root / "fixture.keychain-db"), "notary_profile": "fixture"}
+                       "keychain": str(self.root / "fixture.keychain-db"), "notary_profile": "fixture",
+                       "node": str(pathlib.Path(sys.executable).resolve())}
         pathlib.Path(self.config["keychain"]).touch()
         self.calls = []
         self.failure = None
@@ -40,6 +41,8 @@ class ReleaseTests(unittest.TestCase):
             raise RuntimeError("Synthetic failure")
         if label == "Check source revision":
             return REVISION
+        if label == "Check configured Node version":
+            return "v22.0.0"
         if label == "Check source cleanliness":
             return " M fixture" if self.dirty else ""
         if label == "Read keychain search list":
@@ -78,14 +81,32 @@ class ReleaseTests(unittest.TestCase):
     def test_sensitive_release_tools_use_fixed_system_paths(self):
         with patch.dict(os.environ, {"PATH": "/synthetic/shadow-tools"}):
             self.execute("synthetic")
-        system_tools = {"git", "codesign", "security", "xcrun", "ditto", "lipo", "spctl"}
+        system_tools = {"git", "codesign", "security", "xcrun", "ditto", "lipo", "spctl", "jq", "bash"}
         for label, args in self.calls:
             tool = pathlib.Path(args[0]).name
             if tool in system_tools:
-                expected = ("/usr/sbin/" if tool == "spctl" else "/usr/bin/") + tool
+                expected = ("/bin/" if tool == "bash" else "/usr/sbin/" if tool == "spctl" else "/usr/bin/") + tool
                 self.assertEqual(args[0], expected, label)
                 if tool == "git":
                     self.assertEqual(args[1], "--no-replace-objects", label)
+        tests = next(args for label, args in self.calls if label == "Run full test suite")
+        self.assertEqual(tests, ("/bin/bash", "scripts/test.sh", self.config["node"], sys.executable))
+
+    def test_missing_or_relative_node_path_is_rejected(self):
+        path = self.root / "config.json"
+        for node in ("node", str(self.root / "missing"), str(self.root)):
+            path.write_text(json.dumps({**self.config, "node": node}))
+            with self.subTest(node=node), self.assertRaisesRegex(RuntimeError, "absolute executable"):
+                release.settings(path)
+
+    def test_old_node_version_stops_before_credentials(self):
+        def command(label, *args, **kwargs):
+            if label == "Check configured Node version":
+                return "v20.0.0"
+            return self.command(label, *args, **kwargs)
+        with patch.object(release, "run", side_effect=command), self.assertRaisesRegex(RuntimeError, "22 or newer"):
+            release.release(self.config, REVISION)
+        self.assertNotIn("Check local signing identity", [label for label, _ in self.calls])
 
     def test_real_replacement_refs_stop_release_before_credentials(self):
         checkout = self.root / "checkout"
@@ -266,21 +287,21 @@ class ReleaseTests(unittest.TestCase):
             self.assertTrue(command.call_args.kwargs["start_new_session"])
             self.assertEqual(process.communicate.call_args.kwargs["input"], "synthetic\n")
 
-    def test_xcode_overrides_are_only_forwarded_to_build_scripts(self):
+    def test_xcode_overrides_never_redirect_release_build_or_signing_tools(self):
         environment = {"PATH": "/synthetic/tools", "HOME": "/synthetic/home",
                        "DEVELOPER_DIR": "/synthetic/developer", "SDKROOT": "/synthetic/sdk",
                        "TOOLCHAINS": "synthetic", "CREATOR_SIGNING_PASSWORD": "synthetic"}
         commands = (("/usr/bin/xcrun", "notarytool", "history"),
                     ("/usr/bin/xcrun", "stapler", "validate", "fixture"),
                     ("/usr/bin/codesign", "--verify", "fixture"),
-                    ("bash", "scripts/test.sh"), ("bash", "scripts/build.sh", "--universal"))
+                    ("/bin/bash", "scripts/test.sh"), ("/bin/bash", "scripts/build.sh", "--universal"))
         for arguments in commands:
             with self.subTest(arguments=arguments), patch.dict(os.environ, environment, clear=True), patch.object(release.subprocess, "Popen") as command:
                 process = command.return_value.__enter__.return_value
                 process.communicate.return_value = ("", "")
                 process.returncode = 0
                 release.run("Synthetic tool", *arguments)
-                allowed = ("PATH", "HOME", "DEVELOPER_DIR", "SDKROOT") if arguments[0] == "bash" else ("PATH", "HOME")
+                allowed = ("PATH", "HOME")
                 self.assertEqual(command.call_args.kwargs["env"], {key: environment[key] for key in allowed})
 
     def test_real_cancellation_and_timeout_stop_command_descendants(self):
@@ -308,7 +329,7 @@ class ReleaseTests(unittest.TestCase):
                     pid = (directory / name).read_text()
                     deadline = time.monotonic() + 5
                     while True:
-                        state = subprocess.run(["ps", "-o", "stat=", "-p", pid], capture_output=True, text=True).stdout.strip()
+                        state = subprocess.run(["/bin/ps", "-o", "stat=", "-p", pid], capture_output=True, text=True).stdout.strip()
                         if not state or state.startswith("Z"):
                             break
                         if time.monotonic() >= deadline:

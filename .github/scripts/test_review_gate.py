@@ -154,7 +154,7 @@ class ReviewGateTests(unittest.TestCase):
         for pr, expected in ((9, 2), (8, 3), (10, None)):
             with self.subTest(pr=pr):
                 result = subprocess.run(
-                    ["jq", "--argjson", "pr", str(pr), query], input=json.dumps(pages),
+                    ["/usr/bin/jq", "--argjson", "pr", str(pr), query], input=json.dumps(pages),
                     capture_output=True, text=True, check=True,
                 )
                 selected = json.loads(result.stdout)
