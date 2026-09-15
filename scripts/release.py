@@ -97,6 +97,22 @@ def clean_revision(revision):
         raise RuntimeError("The checked-out revision does not match --revision.")
     if run("Check source cleanliness", "/usr/bin/git", "--no-replace-objects", "status", "--porcelain", "--untracked-files=all").strip():
         raise RuntimeError("Commit or remove source changes before releasing.")
+    entries = run("Check source index flags", "/usr/bin/git", "--no-replace-objects", "ls-files", "-v", "-z")
+    if any(entry[0].islower() or entry[0] == "S" for entry in entries.split("\0") if entry):
+        raise RuntimeError("Release index flags must not hide tracked files. Clear assume-unchanged and skip-worktree flags.")
+    tree = run("Read checkout source tree", "/usr/bin/git", "--no-replace-objects", "ls-tree", "-rz", "--full-tree", revision)
+    for record in tree.split("\0"):
+        if not record:
+            continue
+        metadata, name = record.split("\t", 1)
+        mode, kind, expected = metadata.split()
+        file = ROOT / name
+        if kind != "blob" or mode not in {"100644", "100755"} or file.is_symlink() or not file.is_file():
+            raise RuntimeError("Release checkout must contain the reviewed regular files.")
+        data = file.read_bytes()
+        actual = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+        if actual != expected or bool(file.stat().st_mode & 0o111) != (mode == "100755"):
+            raise RuntimeError("Release checkout bytes or executable modes differ from the reviewed tree.")
 
 
 def extract_reviewed_source(archive, source, revision):

@@ -52,6 +52,10 @@ system JSON test tool at `/usr/bin/jq`. Missing tools stop the release; it does 
 fall back to similarly named tools on PATH. No shell startup files are edited.
 The release checkout must not contain Git replacement references. Source checks
 and export also disable object replacement to preserve the reviewed commit's bytes.
+Before and after tests, the checkout's regular-file bytes and executable modes
+must match the reviewed tree. Index flags that hide changes (`assume-unchanged`
+or `skip-worktree`) are rejected. A clean Git status alone is not enough; filters
+or line-ending conversion must not change the files that the suite actually tests.
 Before extraction or compilation, the source archive's file paths and Git blob IDs
 must match the reviewed tree. Missing, added, duplicate or rewritten files stop the
 release, including changes caused by local or configured Git export attributes.

@@ -27,6 +27,7 @@ class ReleaseTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = pathlib.Path(temporary.name).resolve()
+        (self.root / "fixture").write_text("synthetic source")
         self.config = {"identity": "B" * 40, "team_id": "TESTTEAM01",
                        "keychain": str(self.root / "fixture.keychain-db"), "notary_profile": "fixture",
                        "node": str(pathlib.Path(sys.executable).resolve())}
@@ -54,7 +55,7 @@ class ReleaseTests(unittest.TestCase):
         if label == "Export exact source revision":
             with zipfile.ZipFile(args[-2].removeprefix("--output="), "w") as archive:
                 archive.writestr("fixture", "synthetic source")
-        if label == "Read reviewed source tree":
+        if label in {"Read reviewed source tree", "Read checkout source tree"}:
             data = b"synthetic source"
             oid = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
             return f"100644 blob {oid}\tfixture\0"
@@ -110,9 +111,61 @@ class ReleaseTests(unittest.TestCase):
             if label == "Check configured Node version":
                 return "v20.0.0"
             return self.command(label, *args, **kwargs)
-        with patch.object(release, "run", side_effect=command), self.assertRaisesRegex(RuntimeError, "22 or newer"):
+        with patch.object(release, "ROOT", self.root), patch.object(release, "run", side_effect=command), self.assertRaisesRegex(RuntimeError, "22 or newer"):
             release.release(self.config, REVISION)
         self.assertNotIn("Check local signing identity", [label for label, _ in self.calls])
+
+    def test_hidden_worktree_changes_stop_before_credentials(self):
+        checkout = self.root / "checkout"
+        checkout.mkdir()
+        environment = {"PATH": os.environ["PATH"], "HOME": str(self.root),
+                       "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+        def git(*args):
+            return subprocess.check_output(["/usr/bin/git", *args], cwd=checkout,
+                                           env=environment, stderr=subprocess.DEVNULL)
+        git("init", "-b", "main")
+        git("config", "user.name", "Fixture")
+        git("config", "user.email", "123+fixture@users.noreply.github.com")
+        git("config", "core.autocrlf", "true")
+        source = checkout / "fixture"
+        source.write_bytes(b"reviewed source\n")
+        git("add", "fixture")
+        git("-c", "commit.gpgsign=false", "commit", "-m", "Reviewed fixture")
+        reviewed = git("rev-parse", "HEAD").decode().strip()
+        actual_run = release.run
+        def checked_run(label, *args, **kwargs):
+            if args[0] != "/usr/bin/git":
+                self.fail("Hidden source changes reached credential or build tools")
+            return actual_run(label, *args, cwd=checkout, **kwargs)
+        for flag in ("skip-worktree", "assume-unchanged"):
+            with self.subTest(flag=flag):
+                git("update-index", "--" + flag, "fixture")
+                source.write_bytes(b"unreviewed source\n")
+                self.assertEqual(git("status", "--porcelain"), b"")
+                with patch.dict(os.environ, environment, clear=True), patch.object(release, "ROOT", checkout), \
+                        patch.object(release, "run", side_effect=checked_run):
+                    with self.assertRaisesRegex(RuntimeError, "index flags"):
+                        release.release(self.config, reviewed)
+                source.write_bytes(b"reviewed source\n")
+                git("update-index", "--no-" + flag, "fixture")
+        # Clean filters can also make status clean while checkout bytes differ.
+        source.write_bytes(b"reviewed source\r\n")
+        git("add", "fixture")
+        self.assertEqual(git("status", "--porcelain"), b"")
+        with patch.dict(os.environ, environment, clear=True), patch.object(release, "ROOT", checkout), \
+                patch.object(release, "run", side_effect=checked_run):
+            with self.assertRaisesRegex(RuntimeError, "checkout bytes"):
+                release.release(self.config, reviewed)
+
+    def test_test_time_source_changes_stop_before_export(self):
+        def command(label, *args, **kwargs):
+            if label == "Run full test suite":
+                (self.root / "fixture").write_bytes(b"changed during tests")
+            return self.command(label, *args, **kwargs)
+        with patch.object(release, "ROOT", self.root), patch.object(release, "run", side_effect=command):
+            with self.assertRaisesRegex(RuntimeError, "checkout bytes"):
+                release.release(self.config, REVISION)
+        self.assertNotIn("Export exact source revision", [label for label, _ in self.calls])
 
     def test_real_replacement_refs_stop_release_before_credentials(self):
         checkout = self.root / "checkout"
@@ -203,8 +256,7 @@ class ReleaseTests(unittest.TestCase):
             git("config", "core.attributesFile", str(attributes))
             for attribute in ("export-ignore", "export-subst"):
                 with self.subTest(location=location, attribute=attribute):
-                    output_root = self.root / f"{location}-{attribute}"
-                    output_root.mkdir()
+                    output_root = checkout
                     attributes.write_text(f"fixture {attribute}\n")
                     self.assertEqual(git("status", "--porcelain"), b"")
                     with zipfile.ZipFile(io.BytesIO(git("archive", "--format=zip", reviewed))) as handle:
