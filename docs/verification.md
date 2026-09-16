@@ -6,13 +6,15 @@ Run `bash scripts/test.sh`. The suite checks device mappings, private bridge mes
 
 These tests do not launch the helper, post keyboard events, read clipboard data, inspect conversations or modify the device. Passing them does not establish hardware compatibility.
 
-Setup fixtures cover step gating, build-scoped confirmations, malformed operation messages, private recovery paths and readback failures. On macOS, an isolated AppKit fixture renders all seven screens and asserts layout, column width and scrolling. It has no device bridge or registered hotkeys. These checks do not replace live keyboard/VoiceOver use, permission granting, restart or signed-update acceptance.
+Setup fixtures cover step gating, build-scoped confirmations, malformed operation messages, private recovery paths and readback failures. On macOS, an isolated AppKit fixture renders all seven screens and asserts layout, column width and scrolling. A separate lifecycle run briefly opens, closes and reopens its window, checking visibility and preservation of the helper's accessory activation policy. It has no device bridge or registered hotkeys. These checks do not replace live keyboard/VoiceOver use, permission granting, restart or signed-update acceptance.
 
 The review candidate adds fail-closed handling for unreadable approval trees, rejects a control labeled as both approval and denial, prevents superseded app launches from activating, and handles a closed bridge pipe without SIGPIPE termination. Fixtures cover these changes, including a real exited child process. The app-activation regression is a source assertion; rapid-launch race conditions were not independently tested live.
 
 Further review requires every nonempty approval label to identify the same permitted action and aborts Copy when a response tree is unreadable, including Claude toolbar retries. Permission-container attribute errors and incomplete workspace child reads also abort selection. These error cases have synthetic coverage. Normal operation on the updated build was physically tested as recorded below.
 
 ## Current USB and Bluetooth acceptance
+
+On 2026-09-16, fresh-install testing of the signed wizard build from `152a7384b2f4c3ff3b214dd064cb8fb29a1677c6` found that Claude did not come forward while setup was open. Layers 3/4 still selected the correct view after Claude was brought forward manually. Closing setup restored app switching, as reported by the tester. The setup activation-policy correction has fixture coverage; physical switching with the corrected signed build and setup open remains pending.
 
 On 2026-09-15, the tester reported correct wired and Bluetooth operation on the Developer ID-signed, notarized build from `3d068c4c299c276c3bfb7017dd3d248f78d6210e`. Its executable SHA-256 is `1eecc85b0f43d49fc306edfe7eedec49bc8d2a2cf6a790aac09fcb1ddcbf9f4b`. Both permission entries had to be removed and re-added, then the app relaunched, before it worked. This is a user-reported normal-operation pass, not evidence that a later signed update retains permissions. The new setup wizard requires its own signed-build acceptance; the earlier result does not validate it.
 

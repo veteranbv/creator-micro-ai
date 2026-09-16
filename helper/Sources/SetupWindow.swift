@@ -59,7 +59,6 @@ final class SetupWindow: NSWindowController, NSWindowDelegate {
     func present() {
         refresh()
         render()
-        NSApp.setActivationPolicy(.regular)
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -477,5 +476,4 @@ final class SetupWindow: NSWindowController, NSWindowDelegate {
         if isBusy { NSSound.beep(); return false }
         save(); return true
     }
-    func windowWillClose(_ notification: Notification) { NSApp.setActivationPolicy(.accessory) }
 }
