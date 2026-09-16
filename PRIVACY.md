@@ -21,7 +21,9 @@ No typed-text recording, clipboard reads, audio capture, screenshots, conversati
 
 ## Files and third parties
 
-The normal helper runtime does not create user-data files. Explicit device configuration writes a recovery copy under your user Library's `Application Support/Creator Micro AI/backups`, in a private directory. A backup may contain your prior custom macros or paths. Never commit or upload it. It is retained until you deliberately remove it.
+Setup saves its current step and your explicit test confirmations in this app's macOS preferences. A fingerprint of the helper executable ties confirmations to the build you tested. These preferences stay on this Mac. Permissions, connection state and profile-match results are checked again, not restored as trusted from saved progress. Setup does not record the test actions or text you enter.
+
+Explicit device configuration writes a recovery copy under your user Library's `Application Support/Creator Micro AI/backups`, in a private directory. A backup may contain your prior custom macros or paths. Never commit or upload it. It is retained until you deliberately remove it. The setup window holds the latest recovery location in memory and can reveal it in Finder. Neither setup nor the normal helper runtime creates an action log.
 
 The helper loads Work Louder's device kit from your Input installation. We do not redistribute or claim to audit the entire vendor app. macOS itself may retain crash and security diagnostics. Your chosen dictation tool, Input, ChatGPT and Claude have separate data handling and network behavior. Choosing a different dictation tool does not change what this helper collects, but can change where your audio and transcript are processed.
 

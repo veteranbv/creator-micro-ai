@@ -107,12 +107,37 @@ final class DeviceBridge {
         closeHandles()
         process?.terminate()
     }
+
+    func pauseForSetup(completion: @escaping (Bool) -> Void) {
+        stop()
+        onMessage?(BridgeMessage(type: "error", layer: nil, requestId: nil))
+        let deadline = Date().addingTimeInterval(4)
+        func check() {
+            if process?.isRunning != true {
+                closeHandles()
+                process = nil
+                completion(true)
+            } else if Date() >= deadline {
+                completion(false)
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: check)
+            }
+        }
+        check()
+    }
+
+    func resumeAfterSetup() { stopped = false; start() }
 }
 
 final class HelperLifecycle: NSObject, NSApplicationDelegate {
     private let bridge: DeviceBridge
     private let healthSnapshot: () -> HelperHealth
     private var statusItem: NSStatusItem?
+    private lazy var setup = SetupWindow(health: healthSnapshot,
+        pauseBridge: { [weak self] completion in
+            guard let self else { completion(false); return }
+            self.bridge.pauseForSetup(completion: completion)
+        }, resumeBridge: { [weak self] in self?.bridge.resumeAfterSetup() })
     private let connectionInfo = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let accessibilityInfo = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let inputMonitoringInfo = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -130,6 +155,10 @@ final class HelperLifecycle: NSObject, NSApplicationDelegate {
         let info = NSMenuItem(title: "Creator Micro AI · local helper", action: nil, keyEquivalent: "")
         info.isEnabled = false
         menu.addItem(info)
+        let setupItem = NSMenuItem(title: "Setup & Status…", action: #selector(openSetup), keyEquivalent: "")
+        setupItem.target = self
+        menu.addItem(setupItem)
+        menu.addItem(.separator())
         for row in [connectionInfo, accessibilityInfo, inputMonitoringInfo, switchingInfo, recoveryInfo, permissionInfo] {
             row.isEnabled = false
             menu.addItem(row)
@@ -143,6 +172,7 @@ final class HelperLifecycle: NSObject, NSApplicationDelegate {
         updateStatus()
     }
     func updateStatus() {
+        setup.refresh()
         let current = healthSnapshot()
         connectionInfo.title = current.connectionTitle
         accessibilityInfo.title = current.accessibilityTitle
@@ -154,6 +184,18 @@ final class HelperLifecycle: NSObject, NSApplicationDelegate {
         statusItem?.button?.image = NSImage(systemSymbolName: current.needsAttention ? "exclamationmark.triangle" : "keyboard",
                                           accessibilityDescription: description)
         statusItem?.button?.toolTip = description
+    }
+    @objc private func openSetup() { setup.present() }
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        if setup.needsFirstRun || CommandLine.arguments.contains("--setup") { setup.present() }
+    }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        setup.present()
+        return false
+    }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if setup.isBusy { NSSound.beep(); setup.present(); return .terminateCancel }
+        return .terminateNow
     }
     @objc private func quitHelper() { NSApp.terminate(nil) }
     func applicationWillTerminate(_ notification: Notification) { bridge.stop() }

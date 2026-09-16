@@ -198,10 +198,8 @@ private func activate(_ mode: WorkspaceMode, completion: @escaping (Bool) -> Voi
     }
 }
 
-let promptOptions = [
-    kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
-] as CFDictionary
-let trusted = AXIsProcessTrustedWithOptions(promptOptions)
+// Setup explains each permission before requesting it.
+let trusted = AXIsProcessTrusted()
 health.accessibilityTrusted = trusted
 health.inputMonitoringTrusted = CGPreflightListenEventAccess()
 
@@ -279,12 +277,13 @@ bridge.onMessage = { message in
         break
     }
 }
-bridge.start()
+if health.accessibilityTrusted && health.inputMonitoringTrusted { bridge.start() }
 
 Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { _ in
     let permission = AXIsProcessTrusted()
     health.accessibilityTrusted = permission
     health.inputMonitoringTrusted = CGPreflightListenEventAccess()
+    if permission && health.inputMonitoringTrusted { bridge.start() }
     health.checkStartup(now: ProcessInfo.processInfo.systemUptime)
     lifecycle.updateStatus()
     if permission != lastPermissionState {

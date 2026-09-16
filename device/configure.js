@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
+const { isDeepStrictEqual } = require('node:util');
 const { unwrap } = require('../helper/Resources/worklouder_device_bridge');
 
 async function configure(command, restorePath, kit, options = {}) {
@@ -34,7 +35,7 @@ async function configure(command, restorePath, kit, options = {}) {
     if (command === '--check') {
       log('Compatible keymap schema detected. No changes made. Applying replaces all device profiles and macros.');
       log('Firmware and Input compatibility still require the documented physical tests.');
-      return;
+      return { matches: isDeepStrictEqual(JSON.parse(before), after) };
     }
     if (before !== undefined) {
       const base = options.backupBase || path.join(os.homedir(), 'Library', 'Application Support', 'Creator Micro AI', 'backups');
@@ -42,6 +43,7 @@ async function configure(command, restorePath, kit, options = {}) {
       const backup = fs.mkdtempSync(path.join(base, 'device-'));
       fs.chmodSync(backup, 0o700);
       fs.writeFileSync(path.join(backup, 'keymap.before.json'), before, { flag: 'wx', mode: 0o600 });
+      options.onBackup?.(path.join(backup, 'keymap.before.json'));
       log(`Recovery copy: ${path.join(backup, 'keymap.before.json')}`);
     } else {
       log('The current keymap could not be read. Restoring the validated backup without a new recovery copy.');
@@ -49,18 +51,26 @@ async function configure(command, restorePath, kit, options = {}) {
     unwrap(await api.writeFileChunkedFromStr('keymap.json', JSON.stringify(after), () => {}));
     assert.deepEqual(JSON.parse(await read()), after, 'READBACK_MISMATCH_RESTORE_BACKUP');
     log('Device readback verified. Restart Input to refresh its cached labels. Run the physical acceptance checklist.');
+    return { matches: command === '--apply' };
   } finally { await comm.disconnect(); }
 }
 if (require.main === module) {
+  const setup = process.argv[2] === '--setup';
+  const emit = value => process.stdout.write(JSON.stringify(value) + '\n');
   const deadline = setTimeout(() => {
-    console.error('Device operation timed out. A write may be incomplete; use your recovery copy to restore it.');
+    if (setup) emit({ type: 'failed' });
+    else console.error('Device operation timed out. A write may be incomplete; use your recovery copy to restore it.');
     process.exit(1);
   }, 30000);
   Promise.resolve().then(() => {
     const kit = require('/Applications/input.app/Contents/Resources/app.asar/node_modules/@worklouder/wl-device-kit');
-    return configure(process.argv[2] || '--check', process.argv[3], kit);
+    return configure(process.argv[setup ? 3 : 2] || '--check', process.argv[setup ? 4 : 3], kit,
+      setup ? { log: () => {}, onBackup: file => emit({ type: 'backup', file }) } : {});
+  }).then(result => {
+    if (setup) emit({ type: 'complete', matches: result.matches });
   }).catch(() => {
-    console.error('Device operation failed. No raw device data was logged. If a write was attempted, use the recovery copy reported above.');
+    if (setup) emit({ type: 'failed' });
+    else console.error('Device operation failed. No raw device data was logged. If a write was attempted, use the recovery copy reported above.');
     process.exitCode = 1;
   }).finally(() => clearTimeout(deadline));
 }
