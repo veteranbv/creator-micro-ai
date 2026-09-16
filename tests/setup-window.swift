@@ -24,6 +24,7 @@ enum SetupWindowPreview {
     }
 
     static func main() {
+        if CommandLine.arguments.dropFirst().first == "--lifecycle" { checkLifecycle(); return }
         let render = CommandLine.arguments.dropFirst().first == "--render"
         if render { renderScreens(); return }
         guard let step = Int(CommandLine.arguments.dropFirst().first ?? "0"), (0...6).contains(step) else { return }
@@ -34,6 +35,7 @@ enum SetupWindowPreview {
         let build = executableFingerprint()
         defaults.set(["step": step, "build": build], forKey: "setupProgress")
         let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
         let controller = SetupWindow(health: { HelperHealth() },
                                      pauseBridge: { $0(false) }, resumeBridge: {}, defaults: defaults)
         controller.window?.title = "Setup visual fixture · no device access"
@@ -42,6 +44,29 @@ enum SetupWindowPreview {
         Timer.scheduledTimer(withTimeInterval: 180, repeats: false) { _ in app.stop(nil) }
         app.run()
         controller.close()
+    }
+
+    static func checkLifecycle() {
+        let app = NSApplication.shared
+        require(app.setActivationPolicy(.accessory), "Fixture must start as an accessory app")
+        let suite = "community.creatormicroai.setup-fixture-preferences"
+        let defaults = preferences(suite)
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let controller = SetupWindow(health: { HelperHealth() },
+                                     pauseBridge: { $0(false) }, resumeBridge: {}, defaults: defaults)
+        controller.window?.title = "Setup lifecycle fixture · no device access"
+        for _ in 0..<2 {
+            controller.present()
+            require(app.activationPolicy() == .accessory, "Opening setup must preserve accessory activation policy")
+            require(controller.window?.isVisible == true, "Accessory setup window must be visible")
+            controller.present()
+            require(app.activationPolicy() == .accessory, "Presenting open setup must preserve accessory activation policy")
+            controller.close()
+            require(controller.window?.isVisible == false, "Setup window must close")
+            require(app.activationPolicy() == .accessory, "Closing setup must preserve accessory activation policy")
+        }
+        print("Setup open, close and reopen preserve accessory activation policy. No device access.")
     }
 
     // Render only this fixture's view, not the screen or other apps.

@@ -43,6 +43,7 @@ if [[ "$(/usr/bin/uname -s)" == Darwin ]]; then
     helper/Sources/SetupDeviceOperation.swift helper/Sources/HelperHealth.swift tests/setup-window.swift \
     -module-cache-path build/module-cache -framework AppKit -o build/tests/setup-window
   build/tests/setup-window --render
+  build/tests/setup-window --lifecycle
   /bin/bash scripts/build.sh --universal
 else
   echo 'Swift/AppKit tests require macOS. CI runs them in the macOS job.'
