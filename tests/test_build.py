@@ -24,11 +24,13 @@ class BuildTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="bundle-test-")
         self.addCleanup(temporary.cleanup)
         root = pathlib.Path(temporary.name)
-        for directory in ("scripts", "helper/Sources", "helper/Resources", "assets", "bin"):
+        for directory in ("scripts", "helper/Sources", "helper/Resources", "assets", "bin", "device", "docs/assets"):
             (root / directory).mkdir(parents=True)
         script = (ROOT / "scripts/build.sh").read_text()
         for name in ("helper/Sources/main.swift", "helper/Info.plist",
-                     "helper/Resources/worklouder_device_bridge.js", "assets/AppIcon.icns"):
+                     "helper/Resources/worklouder_device_bridge.js", "assets/AppIcon.icns",
+                     "device/configure.js", "device/keymap.json", "docs/layout.html",
+                     "docs/assets/keycaps.svg", "docs/assets/creator-micro-device.png"):
             (root / name).write_text("synthetic fixture")
         commands = {
             "xcrun": '#!/bin/sh\nif [ "$1" = --sdk ]; then printf "%s/sdk\\n" "$PWD"; else printf "%s/bin/swiftc\\n" "$PWD"; fi\n',
@@ -75,6 +77,9 @@ class BuildTests(unittest.TestCase):
         self.assertFalse((app / "Contents/Resources/obsolete.fixture").exists())
         self.assertTrue((app / "Contents/Resources/worklouder_device_bridge.js").is_file())
         self.assertTrue((app / "Contents/Resources/AppIcon.icns").is_file())
+        for resource in ("device/configure.js", "device/keymap.json", "helper/Resources/worklouder_device_bridge.js",
+                         "reference/layout.html", "reference/assets/keycaps.svg", "reference/assets/creator-micro-device.png"):
+            self.assertTrue((app / "Contents/Resources" / resource).is_file(), resource)
         self.assertTrue((app / "Contents/MacOS/CreatorMicroAI").is_file())
         recovery = list((root / "build").glob("previous-app.*/Creator Micro AI.app/Contents/Resources/obsolete.fixture"))
         self.assertEqual(len(recovery), 1)

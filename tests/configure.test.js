@@ -53,6 +53,39 @@ test('check accepts both current arrays without writing',async()=>{
  const kit={WLDeviceDiscovery:class{findWLDevices(){return [{deviceType:'creator_micro_v2'}];}},
   WLDeviceCommImpl:class{async connect(){return true;}async disconnect(){disconnects++;}},
   WLRPCApi:class{async readFileChunked(){return JSON.stringify({version:1,profiles:[],macros:[]});}async writeFileChunkedFromStr(){writes++;}}};
- await configure('--check',undefined,kit,{log:message=>messages.push(message)});
+ const result=await configure('--check',undefined,kit,{log:message=>messages.push(message)});
+ assert.equal(result.matches,false);
  assert.equal(writes,0);assert.equal(disconnects,1);assert.match(messages[0],/Compatible keymap schema/);
+});
+
+test('check detects the exact profile without a backup or write',async()=>{
+ let writes=0,backups=0;
+ const data=fs.readFileSync(path.join(__dirname,'../device/keymap.json'),'utf8');
+ const kit={WLDeviceDiscovery:class{findWLDevices(){return [{deviceType:'creator_micro_v2'}];}},
+  WLDeviceCommImpl:class{async connect(){return true;}async disconnect(){}},
+  WLRPCApi:class{async readFileChunked(){return data;}async writeFileChunkedFromStr(){writes++;}}};
+ const result=await configure('--check',undefined,kit,{log:()=>{},onBackup:()=>{backups++;}});
+ assert.equal(result.matches,true);assert.equal(writes,0);assert.equal(backups,0);
+});
+
+for(const failReadback of [false,true]) test('apply reports recovery before writing, readback failure='+failReadback,async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'profile-test-'));
+ try{
+  const before=JSON.stringify({version:1,profiles:[],macros:[]});
+  let data=before,backupPath,disconnects=0;
+  const kit={WLDeviceDiscovery:class{findWLDevices(){return [{deviceType:'creator_micro_v2'}];}},
+   WLDeviceCommImpl:class{async connect(){return true;}async disconnect(){disconnects++;}},
+   WLRPCApi:class{
+    async readFileChunked(){return data;}
+    async writeFileChunkedFromStr(name,value){
+     assert.ok(backupPath);assert.equal(fs.readFileSync(backupPath,'utf8'),before);
+     assert.equal(fs.statSync(backupPath).mode&0o777,0o600);
+     data=failReadback?before:value;return {ok:true};
+    }
+   }};
+  const operation=configure('--apply',undefined,kit,{backupBase:dir,log:()=>{},onBackup:file=>{backupPath=file;}});
+  if(failReadback) await assert.rejects(operation,/READBACK_MISMATCH/);
+  else assert.equal((await operation).matches,true);
+  assert.equal(disconnects,1);assert.ok(backupPath);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });

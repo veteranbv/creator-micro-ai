@@ -40,6 +40,12 @@ fi
 /bin/rm "${binaries[@]}"
 /bin/cp "$root/helper/Info.plist" "$app/Contents/Info.plist"
 /bin/cp "$root/helper/Resources/worklouder_device_bridge.js" "$app/Contents/Resources/"
+/bin/mkdir -p "$app/Contents/Resources/device" "$app/Contents/Resources/helper/Resources" "$app/Contents/Resources/reference/assets"
+/bin/cp "$root/device/configure.js" "$root/device/keymap.json" "$app/Contents/Resources/device/"
+# The configurator keeps the same reviewed relative import in source and bundles.
+/bin/cp "$root/helper/Resources/worklouder_device_bridge.js" "$app/Contents/Resources/helper/Resources/"
+/bin/cp "$root/docs/layout.html" "$app/Contents/Resources/reference/"
+/bin/cp "$root/docs/assets/keycaps.svg" "$root/docs/assets/creator-micro-device.png" "$app/Contents/Resources/reference/assets/"
 /bin/cp "$root/assets/AppIcon.icns" "$app/Contents/Resources/"
 /usr/bin/codesign --force --sign - "$app"
 /usr/bin/codesign --verify --deep --strict "$app"

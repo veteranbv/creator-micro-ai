@@ -49,6 +49,11 @@ SOURCE_REFERENCES = {
     "file.name", "action.properties", "cap.events.click", "cap.properties", "reads.read",
     "ids.caps.children.map", "item.events", "item.properties", "item.style", "layer.events.click",
     "release.run", "download.name", "self.fail",
+    "setupItem.target", "DispatchQueue.global", "pipe.fileHandleForReading.read",
+    "NSWorkspace.shared.open", "back.target", "next.target", "relaunch.run",
+    "self.health", "self.operation.run", "window.center", "app.run",
+    # Fixed macOS System Settings pane identifier, not a network host.
+    "com.apple.preference.security",
 }
 SOURCE_EXTENSIONS = {".py", ".js", ".swift", ".yml", ".yaml"}
 PYTHON_MEMBERS = {"release.run", "download.name", "self.fail"}

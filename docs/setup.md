@@ -16,7 +16,28 @@ The current target apps must be installed at `/Applications/ChatGPT.app` and `/A
 
 Superwhisper is the maintainer's choice and the dictation tool used in testing, not a required dependency. Test alternatives across all four workspaces before relying on them. A tool that only supports hold-to-talk, opens its own editor, or requires manual pasting needs additional configuration and is not a drop-in replacement for this profile.
 
-## Load the device profile
+## Guided setup
+
+Open the installed Creator Micro AI app. Setup opens on the first run of a build and resumes if you close it partway through. You can reopen it from Applications at any time, or choose **Setup & Status** from its menu-bar icon. You do not need to find that icon to continue setup.
+
+If using a signed ZIP supplied by the maintainer, extract it and move the app into your user Applications folder before opening it. Keep the app in that location when granting permissions. Source-build installation is described below; downloading or building alone does not install the helper.
+
+1. **Your apps:** checks that this helper is installed in Applications, plus the supported Input version and the two desktop apps. Nothing is downloaded or installed silently. **Show this helper in Finder** identifies the exact copy to move or add to permission lists.
+2. **Permissions:** explains Accessibility and Input Monitoring separately, opens each settings pane, and checks this running helper's trust. Add the same installed app in both lists. macOS, not the wizard, handles password or Touch ID prompts. Use **Restart helper after permission changes** when needed.
+3. **Your device:** connect exactly one device by USB and close Input's configuration window. Choose **Check existing profile** first. A matching profile needs no rewrite. Applying or restoring requires a separate confirmation and pauses the helper bridge so it cannot compete for the connection. Applying backs up the current keymap before writing and verifies readback.
+4. **Dictation:** configure Control+Shift+D in your chosen tool and confirm a short disposable-draft test.
+5. **Try it:** confirm the physical layer and key tests yourself. Bluetooth is optional and is labeled untested unless you confirm it. After a disconnect, recheck the profile over USB before finishing.
+6. **Ready:** shows current checks alongside your confirmations. It cannot finish with missing permissions, a disconnected bridge or an unchecked profile. Closing the window leaves the helper running.
+
+The matching control reference is included in the app and opens locally in your browser. No web connection is needed for the reference. Setup help remains available on every screen.
+
+Saved progress is not proof that the device or permissions still work. Reopening the helper requires a fresh profile check. A changed build also clears physical test confirmations. See [PRIVACY.md](../PRIVACY.md) for the small amount of local setup state retained.
+
+If a profile write fails or times out, it may be incomplete. Keep USB connected, choose **Show recovery copies**, then **Restore a saved profile**. The recovery file stays private. Restart Input after a successful write to refresh cached labels. Never rewrite a working profile solely because permission switches appear enabled but app switching fails.
+
+## Command-line profile setup
+
+The wizard and these commands use the same profile configurator. The commands remain available for development and recovery.
 
 Quit any running copy of the helper first. The profile operation must not compete with the helper's USB connection.
 

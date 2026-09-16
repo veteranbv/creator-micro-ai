@@ -25,6 +25,8 @@ The wide key sends Control+Shift+D to your configured dictation tool. The key be
 
 See the [interactive side-by-side layout](https://veteranbv.github.io/creator-micro-ai/), [setup guide](docs/setup.md), [gotchas](docs/gotchas.md), and [physical test checklist](docs/verification.md).
 
+The companion app includes guided setup for app compatibility, both macOS permissions, safe profile configuration, dictation and physical tests. Reopen Creator Micro AI from Applications to see **Setup & Status**. The control reference is also bundled for offline use. macOS permission approvals remain yours to grant.
+
 ### The physical layout
 
 ![Illustrated Creator Micro keycaps beside their matching actions](docs/assets/layout-reference.svg)

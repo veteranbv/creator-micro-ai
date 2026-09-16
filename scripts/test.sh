@@ -36,6 +36,13 @@ if [[ "$(/usr/bin/uname -s)" == Darwin ]]; then
   "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/WorkspaceSelection.swift tests/workspace-selection.swift \
     -module-cache-path build/module-cache -o build/tests/workspace-selection
   build/tests/workspace-selection
+  "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/SetupState.swift helper/Sources/SetupDeviceOperation.swift tests/setup-state.swift \
+    -module-cache-path build/module-cache -framework AppKit -o build/tests/setup-state
+  build/tests/setup-state
+  "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/SetupWindow.swift helper/Sources/SetupState.swift \
+    helper/Sources/SetupDeviceOperation.swift helper/Sources/HelperHealth.swift tests/setup-window.swift \
+    -module-cache-path build/module-cache -framework AppKit -o build/tests/setup-window
+  build/tests/setup-window --render
   /bin/bash scripts/build.sh --universal
 else
   echo 'Swift/AppKit tests require macOS. CI runs them in the macOS job.'
