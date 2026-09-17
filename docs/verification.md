@@ -14,11 +14,13 @@ Further review requires every nonempty approval label to identify the same permi
 
 ## Current USB and Bluetooth acceptance
 
+On 2026-09-16, the tester confirmed the controlled update to version 0.2.1, build 3, from source `5c5098d3f264b3586ecef7ba89ba2d2df72497ed`. The full four-layer cycle passed over USB and Bluetooth with setup open, without removing, re-adding or toggling either Accessibility or Input Monitoring. This is a user-reported switching and permission-retention pass for this update, not a new test of every control or failure mode. A read-only check confirmed the installed version and build number, and its executable SHA-256 matched the signed, notarized candidate: `b271f0a96ceccc7081e7eb1559d9c6acdf8b2ab77b991e50c063db0569ce7728`.
+
 On 2026-09-16, the tester confirmed the full four-layer cycle over USB and Bluetooth with setup open on the signed, notarized build from `7e3fa97c075e376400fbe5eb696a672617dda704`. Its installed bundle matches the verified release, and its executable SHA-256 is `062629abb5b5bd662f58282736dcb2f02572ff53a13475b3262b847ff636a76b`. This is a user-reported switching pass, not a new test of every control or failure mode. The permission entries appeared to remain after replacement, but the tester removed and re-added both, so permission retention is unverified.
 
 Fresh-install testing of the earlier wizard build from `152a7384b2f4c3ff3b214dd064cb8fb29a1677c6` found that Claude did not come forward while setup was open. Layers 3/4 still selected the correct view after Claude was brought forward manually. Closing setup restored app switching. The accessory activation-policy correction has both fixture coverage and the user-reported switching result above.
 
-Version 0.2.1, build 3, prepares a controlled signed-update test without runtime or device-profile changes. Replace the app at the same location, keep both existing permission grants untouched, and test the full four-layer cycle on USB and Bluetooth with setup open. Do not reapply the device profile. If either permission fails, record the failure before changing settings. This candidate's permission-retention result remains pending.
+Version 0.2.1, build 3, contains no runtime or device-profile changes from the preceding signed release. For future signed-update tests, replace the app at the same location, keep both existing permission grants untouched, and test the full four-layer cycle on USB and Bluetooth with setup open. Do not reapply the device profile. If either permission fails, record the failure before changing settings. The successful update above does not establish retention for every future build or system configuration.
 
 On 2026-09-15, the tester reported correct wired and Bluetooth operation on the Developer ID-signed, notarized build from `3d068c4c299c276c3bfb7017dd3d248f78d6210e`. Its executable SHA-256 is `1eecc85b0f43d49fc306edfe7eedec49bc8d2a2cf6a790aac09fcb1ddcbf9f4b`. Both permission entries had to be removed and re-added, then the app relaunched, before it worked. This is a user-reported normal-operation pass, not evidence that a later signed update retains permissions. The new setup wizard requires its own signed-build acceptance; the earlier result does not validate it.
 
@@ -60,7 +62,7 @@ Record macOS, Input, firmware, ChatGPT, Claude and dictation-tool versions; dict
 
 | Test | Tested build | 1 Codex | 2 ChatGPT | 3 Claude Code | 4 Claude Chat |
 | --- | --- | --- | --- | --- | --- |
-| Layer selects correct foreground view, setup open | `7e3fa97` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| Layer selects correct foreground view, setup open | `5c5098d` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
 | Dictation start/stop and insertion | `ed16b63` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
 | New chat, Escape, @, Backspace, Undo, Shift+Return (⇧ ↵), Submit | `ed16b63` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
 | Search and model picker | `ed16b63` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
@@ -69,7 +71,7 @@ Record macOS, Input, firmware, ChatGPT, Claude and dictation-tool versions; dict
 | Y/X with no request leave KEEP THIS DRAFT untouched | Not verified | Pending | Pending | Pending | Pending |
 | Joystick all eight directions and dial rotation/press | `ed16b63` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
 
-Each pass applies only to its row's tested build on both USB and Bluetooth. The full commit IDs and executable hashes are recorded above. The `ed16b63` control results do not establish control coverage on `7e3fa97`; only switching was explicitly confirmed on that newer build. All physical results for version 0.2.1, build 3, remain pending. Three consecutive dictation attempts with exactly one insertion each, and Copy discrimination between assistant responses, user text and code blocks, still need explicit results.
+Each pass applies only to its row's tested build on both USB and Bluetooth. The full commit IDs and executable hashes are recorded above. The `ed16b63` control results do not establish control coverage on `5c5098d`; only switching and signed-update permission retention were confirmed on version 0.2.1, build 3. Three consecutive dictation attempts with exactly one insertion each, and Copy discrimination between assistant responses, user text and code blocks, still need explicit results.
 
 Test the full 1 → 2 → 3 → 4 → 1 cycle. Confirm both foreground app and selected view at each step, not just device colors. Record switching separately from action-key acceptance; a passing cycle does not verify dictation, Copy or approvals.
 
