@@ -14,7 +14,11 @@ Further review requires every nonempty approval label to identify the same permi
 
 ## Current USB and Bluetooth acceptance
 
-On 2026-09-16, fresh-install testing of the signed wizard build from `152a7384b2f4c3ff3b214dd064cb8fb29a1677c6` found that Claude did not come forward while setup was open. Layers 3/4 still selected the correct view after Claude was brought forward manually. Closing setup restored app switching, as reported by the tester. The setup activation-policy correction has fixture coverage; physical switching with the corrected signed build and setup open remains pending.
+On 2026-09-16, the tester confirmed the full four-layer cycle over USB and Bluetooth with setup open on the signed, notarized build from `7e3fa97c075e376400fbe5eb696a672617dda704`. Its installed bundle matches the verified release, and its executable SHA-256 is `062629abb5b5bd662f58282736dcb2f02572ff53a13475b3262b847ff636a76b`. This is a user-reported switching pass, not a new test of every control or failure mode. The permission entries appeared to remain after replacement, but the tester removed and re-added both, so permission retention is unverified.
+
+Fresh-install testing of the earlier wizard build from `152a7384b2f4c3ff3b214dd064cb8fb29a1677c6` found that Claude did not come forward while setup was open. Layers 3/4 still selected the correct view after Claude was brought forward manually. Closing setup restored app switching. The accessory activation-policy correction has both fixture coverage and the user-reported switching result above.
+
+Version 0.2.1, build 3, prepares a controlled signed-update test without runtime or device-profile changes. Replace the app at the same location, keep both existing permission grants untouched, and test the full four-layer cycle on USB and Bluetooth with setup open. Do not reapply the device profile. If either permission fails, record the failure before changing settings. This candidate's permission-retention result remains pending.
 
 On 2026-09-15, the tester reported correct wired and Bluetooth operation on the Developer ID-signed, notarized build from `3d068c4c299c276c3bfb7017dd3d248f78d6210e`. Its executable SHA-256 is `1eecc85b0f43d49fc306edfe7eedec49bc8d2a2cf6a790aac09fcb1ddcbf9f4b`. Both permission entries had to be removed and re-added, then the app relaunched, before it worked. This is a user-reported normal-operation pass, not evidence that a later signed update retains permissions. The new setup wizard requires its own signed-build acceptance; the earlier result does not validate it.
 
