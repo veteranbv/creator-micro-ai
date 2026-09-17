@@ -1,6 +1,15 @@
 import AppKit
 import CryptoKit
 
+private final class SetupLifecycleDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        DispatchQueue.main.async {
+            SetupWindowPreview.checkLaunchedLifecycle()
+            NSApp.terminate(nil)
+        }
+    }
+}
+
 // Optional visual fixture. No bridge, hotkeys or device operation can start.
 // Compile with SetupWindow, SetupState, SetupDeviceOperation and HelperHealth.
 @main
@@ -49,6 +58,20 @@ enum SetupWindowPreview {
     static func checkLifecycle() {
         let app = NSApplication.shared
         require(app.setActivationPolicy(.accessory), "Fixture must start as an accessory app")
+        let delegate = SetupLifecycleDelegate()
+        app.delegate = delegate
+        // Bound a missing launch callback without delaying successful checks.
+        Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
+            require(false, "Lifecycle fixture did not finish within its ten-second limit")
+        }
+        withExtendedLifetime(delegate) { app.run() }
+        require(false, "Lifecycle event loop ended before fixture completion")
+    }
+
+    static func checkLaunchedLifecycle() {
+        let app = NSApplication.shared
+        require(app.isRunning && NSRunningApplication.current.isFinishedLaunching,
+                "Lifecycle checks require a running, fully launched app")
         let suite = "community.creatormicroai.setup-fixture-preferences"
         let defaults = preferences(suite)
         defaults.removePersistentDomain(forName: suite)
