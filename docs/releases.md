@@ -122,6 +122,9 @@ overwritten. Temporary source and submission files are removed on normal exit or
 failure. A forced process termination can leave temporary files under the ignored
 build directory; these contain no exported keys. Do not upload the entire build folder.
 
+Release ZIPs omit resource forks, extended attributes and local ACLs. The signed
+app files and stapled ticket remain intact and are verified after extraction.
+This packaging choice does not bypass quarantine applied to a new download.
 App builds include `LICENSE` and `NOTICE.md` in their resources before signing.
 For an already signed candidate that predates this packaging rule, include those
 two files from its exact source revision beside the unchanged app in the release
