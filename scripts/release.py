@@ -248,7 +248,7 @@ def release(config, revision, password=None):
             sign(app, config)
         verify(app, config)
         submission = stage / "submission.zip"
-        run("Package notarization submission", "/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent",
+        run("Package notarization submission", "/usr/bin/ditto", "-c", "-k", "--norsrc", "--noextattr", "--noacl", "--keepParent",
             str(app), str(submission))
         response = run("Submit to Apple notarization", "/usr/bin/xcrun", "notarytool", "submit", str(submission),
                        *auth, "--wait", "--timeout", "15m", "--output-format", "json")
@@ -262,7 +262,7 @@ def release(config, revision, password=None):
         package = stage / "package"
         package.mkdir()
         download = package / f"{name}.zip"
-        run("Package stapled app", "/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(app), str(download))
+        run("Package stapled app", "/usr/bin/ditto", "-c", "-k", "--norsrc", "--noextattr", "--noacl", "--keepParent", str(app), str(download))
         extracted = stage / "verification"
         run("Extract final download", "/usr/bin/ditto", "-x", "-k", str(download), str(extracted))
         delivered = extracted / "Creator Micro AI.app"

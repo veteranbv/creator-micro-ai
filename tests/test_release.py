@@ -345,6 +345,14 @@ class ReleaseTests(unittest.TestCase):
         directory = next((self.root / "build/releases").iterdir())
         self.assertEqual(sorted(file.suffix for file in directory.iterdir()), ["", ".zip"])
         self.assertIn(".zip", (directory / "SHA256SUMS").read_text())
+        archives = [args for label, args in self.calls
+                    if label in {"Package notarization submission", "Package stapled app"}]
+        self.assertEqual(len(archives), 2)
+        for args in archives:
+            self.assertIn("--norsrc", args)
+            self.assertIn("--noextattr", args)
+            self.assertIn("--noacl", args)
+            self.assertNotIn("--sequesterRsrc", args)
         labels = [label for label, _ in self.calls]
         self.assertLess(labels.index("Staple notarization ticket"), labels.index("Package stapled app"))
         self.assertLess(labels.index("Extract final download"), labels.index("Validate delivered ticket"))
