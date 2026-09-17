@@ -30,7 +30,7 @@ class BuildTests(unittest.TestCase):
         for name in ("helper/Sources/main.swift", "helper/Info.plist",
                      "helper/Resources/worklouder_device_bridge.js", "assets/AppIcon.icns",
                      "device/configure.js", "device/keymap.json", "docs/layout.html",
-                     "docs/assets/keycaps.svg", "docs/assets/creator-micro-device.png"):
+                     "docs/assets/keycaps.svg", "docs/assets/creator-micro-device.png", "LICENSE", "NOTICE.md"):
             (root / name).write_text("synthetic fixture")
         commands = {
             "xcrun": '#!/bin/sh\nif [ "$1" = --sdk ]; then printf "%s/sdk\\n" "$PWD"; else printf "%s/bin/swiftc\\n" "$PWD"; fi\n',
@@ -86,6 +86,8 @@ class BuildTests(unittest.TestCase):
         self.assertFalse((app / "Contents/Resources/obsolete.fixture").exists())
         self.assertTrue((app / "Contents/Resources/worklouder_device_bridge.js").is_file())
         self.assertTrue((app / "Contents/Resources/AppIcon.icns").is_file())
+        for notice in ("LICENSE", "NOTICE.md"):
+            self.assertEqual((app / "Contents/Resources" / notice).read_bytes(), (root / notice).read_bytes())
         for resource in ("device/configure.js", "device/keymap.json", "helper/Resources/worklouder_device_bridge.js",
                          "reference/layout.html", "reference/assets/keycaps.svg", "reference/assets/creator-micro-device.png"):
             self.assertTrue((app / "Contents/Resources" / resource).is_file(), resource)

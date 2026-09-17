@@ -16,11 +16,24 @@ The current target apps must be installed at `/Applications/ChatGPT.app` and `/A
 
 Superwhisper is the maintainer's choice and the dictation tool used in testing, not a required dependency. Test alternatives across all four workspaces before relying on them. A tool that only supports hold-to-talk, opens its own editor, or requires manual pasting needs additional configuration and is not a drop-in replacement for this profile.
 
+## Install a signed download
+
+1. Open [GitHub Releases](https://github.com/veteranbv/creator-micro-ai/releases) and read the pre-release's compatibility and verification limits.
+2. Download the attached `Creator-Micro-AI-...zip` and `SHA256SUMS`. GitHub's **Source code** archives do not contain the built app. If no release is published, use the source-build instructions below.
+3. Extract the ZIP in Finder. Move **Creator Micro AI.app** into Applications before opening it. Either your user Applications folder or `/Applications` is supported. Keep only one active installation, at the same location for future updates.
+4. Open that installed copy and follow **Setup & Status**. Grant Accessibility and Input Monitoring to the same copy when prompted. The app cannot grant those permissions itself.
+
+The maintainer's release ZIP is Developer ID-signed and notarized. macOS still controls its first-open confirmation and privacy permissions. Do not disable Gatekeeper or remove quarantine to bypass a warning. If macOS rejects the download, stop and report the version and warning without private diagnostic data.
+
+For an optional checksum check, place both downloaded files in one folder, open Terminal in that folder and run `shasum -a 256 -c SHA256SUMS`. The result must say `OK`. This detects a changed download; it does not replace macOS signature checks or your physical tests.
+
+For an update, quit the running helper, keep a recovery copy outside the installation location, and replace the app at that same location. Keep existing permission grants untouched initially, then check both statuses and test switching. Refresh both grants only if trust fails. Do not rewrite a matching device profile simply to update the helper.
+
 ## Guided setup
 
 Open the installed Creator Micro AI app. Setup opens on the first run of a build and resumes if you close it partway through. You can reopen it from Applications at any time, or choose **Setup & Status** from its menu-bar icon. You do not need to find that icon to continue setup.
 
-If using a signed ZIP supplied by the maintainer, extract it and move the app into your user Applications folder before opening it. Keep the app in that location when granting permissions. Source-build installation is described below; downloading or building alone does not install the helper.
+Install a signed download as described above, or use the source-build installation below. Downloading or building alone does not install the helper. Keep the installed app in one location when granting permissions.
 
 1. **Your apps:** checks that this helper is installed in Applications, plus the supported Input version and the two desktop apps. Nothing is downloaded or installed silently. **Show this helper in Finder** identifies the exact copy to move or add to permission lists.
 2. **Permissions:** explains Accessibility and Input Monitoring separately, opens each settings pane, and checks this running helper's trust. Add the same installed app in both lists. macOS, not the wizard, handles password or Touch ID prompts. Use **Restart helper after permission changes** when needed.

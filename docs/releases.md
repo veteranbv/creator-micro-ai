@@ -122,6 +122,13 @@ overwritten. Temporary source and submission files are removed on normal exit or
 failure. A forced process termination can leave temporary files under the ignored
 build directory; these contain no exported keys. Do not upload the entire build folder.
 
+App builds include `LICENSE` and `NOTICE.md` in their resources before signing.
+For an already signed candidate that predates this packaging rule, include those
+two files from its exact source revision beside the unchanged app in the release
+ZIP. Preserve the original archive, recompute `SHA256SUMS` for the distribution
+archive, and repeat extracted-download verification. Record that packaging-only
+change in the release notes. Never add files inside an already signed app.
+
 Failures report the failed stage without printing account details or raw tool output.
 Cancellation or timeout kills the active command's process group and waits for the
 child to finish before keychain or temporary-file cleanup begins.

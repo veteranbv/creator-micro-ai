@@ -50,6 +50,7 @@ fi
 /bin/cp "$root/docs/layout.html" "$app/Contents/Resources/reference/"
 /bin/cp "$root/docs/assets/keycaps.svg" "$root/docs/assets/creator-micro-device.png" "$app/Contents/Resources/reference/assets/"
 /bin/cp "$root/assets/AppIcon.icns" "$app/Contents/Resources/"
+/bin/cp "$root/LICENSE" "$root/NOTICE.md" "$app/Contents/Resources/"
 /usr/bin/codesign --force --sign - "$app"
 /usr/bin/codesign --verify --deep --strict "$app"
 if [[ -e "$destination" || -L "$destination" ]]; then
