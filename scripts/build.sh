@@ -33,7 +33,10 @@ for architecture in "${architectures[@]}"; do
 done
 if [[ "$universal" == true ]]; then
   /usr/bin/lipo -create "${binaries[@]}" -output "$app/Contents/MacOS/CreatorMicroAI"
-  /usr/bin/lipo "$app/Contents/MacOS/CreatorMicroAI" -verify_arch arm64 x86_64
+  # Xcode 27's lipo requires a separate verification call for each slice.
+  for architecture in "${architectures[@]}"; do
+    /usr/bin/lipo "$app/Contents/MacOS/CreatorMicroAI" -verify_arch "$architecture"
+  done
 else
   /bin/cp "${binaries[0]}" "$app/Contents/MacOS/CreatorMicroAI"
 fi
