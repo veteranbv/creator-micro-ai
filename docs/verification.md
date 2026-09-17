@@ -58,18 +58,18 @@ Complete this checklist on the source build you intend to use. Do not mark a row
 
 Record macOS, Input, firmware, ChatGPT, Claude and dictation-tool versions; dictation mode and shortcut; keyboard layout; helper commit; and test date. Use synthetic text only. Repeat the dictation checks when changing tools, even if the shortcut stays the same.
 
-| Test | 1 Codex | 2 ChatGPT | 3 Claude Code | 4 Claude Chat |
-| --- | --- | --- | --- | --- |
-| Layer selects correct foreground view | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
-| Dictation start/stop and insertion | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
-| New chat, Escape, @, Backspace, Undo, Shift+Return (⇧ ↵), Submit | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
-| Search and model picker | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
-| Copy response | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
-| Y allows once, X denies a permission request | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
-| Y/X with no request leave KEEP THIS DRAFT untouched | Pending | Pending | Pending | Pending |
-| Joystick all eight directions and dial rotation/press | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| Test | Tested build | 1 Codex | 2 ChatGPT | 3 Claude Code | 4 Claude Chat |
+| --- | --- | --- | --- | --- | --- |
+| Layer selects correct foreground view, setup open | `7e3fa97` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| Dictation start/stop and insertion | `ed16b63` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| New chat, Escape, @, Backspace, Undo, Shift+Return (⇧ ↵), Submit | `ed16b63` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| Search and model picker | `ed16b63` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| Copy response | `ed16b63` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| Y allows once, X denies a permission request | `ed16b63` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
+| Y/X with no request leave KEEP THIS DRAFT untouched | Not verified | Pending | Pending | Pending | Pending |
+| Joystick all eight directions and dial rotation/press | `ed16b63` | User-reported pass | User-reported pass | User-reported pass | User-reported pass |
 
-The pass entries refer to the current acceptance commit above on both transports. Three consecutive dictation attempts with exactly one insertion each, and Copy discrimination between assistant responses, user text and code blocks, still need explicit results.
+Each pass applies only to its row's tested build on both USB and Bluetooth. The full commit IDs and executable hashes are recorded above. The `ed16b63` control results do not establish control coverage on `7e3fa97`; only switching was explicitly confirmed on that newer build. All physical results for version 0.2.1, build 3, remain pending. Three consecutive dictation attempts with exactly one insertion each, and Copy discrimination between assistant responses, user text and code blocks, still need explicit results.
 
 Test the full 1 → 2 → 3 → 4 → 1 cycle. Confirm both foreground app and selected view at each step, not just device colors. Record switching separately from action-key acceptance; a passing cycle does not verify dictation, Copy or approvals.
 
