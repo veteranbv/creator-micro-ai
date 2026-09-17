@@ -20,7 +20,7 @@ class BuildTests(unittest.TestCase):
         self.assertIn('-tools-directory "${compiler%/*}"', script)
         self.assertNotRegex(script, r"\bPATH\s*=")
 
-    def assemble(self, signing_fails=False, minimum="13.2", actual="13.2", universal=False):
+    def assemble(self, signing_fails=False, minimum="13.2", actual="13.2", universal=False, missing_architecture=None):
         temporary = tempfile.TemporaryDirectory(prefix="bundle-test-")
         self.addCleanup(temporary.cleanup)
         root = pathlib.Path(temporary.name)
@@ -39,7 +39,7 @@ class BuildTests(unittest.TestCase):
             "otool": '#!/bin/sh\nprintf "cmd LC_BUILD_VERSION\\nplatform 1\\nminos %s\\n" "' + actual + '"\n',
             "swiftc": '#!/bin/sh\nprintf "%s\\n" "$@" > compiler-arguments\nwhile [ "$#" -gt 0 ]; do\nif [ "$1" = -o ]; then shift; printf fixture > "$1"; exit 0; fi\nshift\ndone\nexit 1\n',
             "codesign": "#!/bin/sh\nexit " + ("1" if signing_fails else "0") + "\n",
-            "lipo": '#!/bin/sh\nprintf "%s\\n" "$@" >> lipo-arguments\nif [ "$1" = -create ]; then\nwhile [ "$1" != -output ]; do shift; done\nshift; printf fixture > "$1"\nfi\n',
+            "lipo": '#!/bin/sh\nprintf "%s\\n" "$@" >> lipo-arguments\nif [ "$1" = -create ]; then\nwhile [ "$1" != -output ]; do shift; done\nshift; printf fixture > "$1"\nelif [ "$#" != 3 ] || [ "$2" != -verify_arch ]; then exit 1\nelif [ "$3" = "' + (missing_architecture or "") + '" ]; then exit 1\nfi\n',
         }
         for name, body in commands.items():
             command = root / "bin" / name
@@ -66,10 +66,19 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(arguments[0], "-create")
         self.assertTrue(arguments[1].endswith("CreatorMicroAI-arm64"))
         self.assertTrue(arguments[2].endswith("CreatorMicroAI-x86_64"))
-        self.assertIn("-verify_arch", arguments)
-        self.assertTrue(arguments[-4].endswith("Contents/MacOS/CreatorMicroAI"))
-        self.assertEqual(arguments[-3:], ["-verify_arch", "arm64", "x86_64"])
+        self.assertTrue(arguments[-6].endswith("Contents/MacOS/CreatorMicroAI"))
+        self.assertEqual(arguments[-6], arguments[-3])
+        self.assertEqual(arguments[-5:-3], ["-verify_arch", "arm64"])
+        self.assertEqual(arguments[-2:], ["-verify_arch", "x86_64"])
         self.assertTrue((app / "Contents/MacOS/CreatorMicroAI").is_file())
+
+    def test_missing_architecture_keeps_existing_bundle(self):
+        for architecture in ("arm64", "x86_64"):
+            with self.subTest(architecture=architecture):
+                root, app, result = self.assemble(universal=True, missing_architecture=architecture)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual((app / "Contents/Resources/obsolete.fixture").read_text(), "previous build fixture")
+                self.assertFalse(list((root / "build").glob("previous-app.*")))
 
     def test_rebuild_excludes_stale_resources_and_preserves_previous_bundle(self):
         root, app, result = self.assemble()

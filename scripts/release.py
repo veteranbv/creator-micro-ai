@@ -267,8 +267,9 @@ def release(config, revision, password=None):
         run("Extract final download", "/usr/bin/ditto", "-x", "-k", str(download), str(extracted))
         delivered = extracted / "Creator Micro AI.app"
         verify(delivered, config)
-        run("Verify both delivered architectures", "/usr/bin/lipo",
-            str(delivered / "Contents/MacOS/CreatorMicroAI"), "-verify_arch", "arm64", "x86_64")
+        for architecture in ("arm64", "x86_64"):
+            run(f"Verify delivered {architecture} architecture", "/usr/bin/lipo",
+                str(delivered / "Contents/MacOS/CreatorMicroAI"), "-verify_arch", architecture)
         run("Validate delivered ticket", "/usr/bin/xcrun", "stapler", "validate", str(delivered))
         run("Check Gatekeeper", "/usr/sbin/spctl", "--assess", "--type", "execute", str(delivered))
         digest = hashlib.sha256(download.read_bytes()).hexdigest()

@@ -348,6 +348,13 @@ class ReleaseTests(unittest.TestCase):
         labels = [label for label, _ in self.calls]
         self.assertLess(labels.index("Staple notarization ticket"), labels.index("Package stapled app"))
         self.assertLess(labels.index("Extract final download"), labels.index("Validate delivered ticket"))
+        architecture_checks = [args for _, args in self.calls if args[0] == "/usr/bin/lipo"]
+        self.assertEqual(len(architecture_checks), 2)
+        for args, architecture in zip(architecture_checks, ("arm64", "x86_64")):
+            self.assertEqual(len(args), 4)
+            self.assertTrue(args[1].endswith("verification/Creator Micro AI.app/Contents/MacOS/CreatorMicroAI"))
+            self.assertEqual(args[2:], ("-verify_arch", architecture))
+        self.assertEqual(architecture_checks[0][1], architecture_checks[1][1])
         signing = next(args for label, args in self.calls if label == "Sign using local keychain")
         self.assertIn("runtime", signing)
         self.assertIn("--timestamp", signing)
@@ -426,7 +433,8 @@ class ReleaseTests(unittest.TestCase):
     def test_failures_never_leave_a_release_or_temporary_material(self):
         for label in ("Sign using local keychain", "Verify Developer ID and bundle identity",
                       "Submit to Apple notarization", "Staple notarization ticket",
-                      "Extract final download", "Validate delivered ticket", "Check Gatekeeper"):
+                      "Extract final download", "Verify delivered arm64 architecture",
+                      "Verify delivered x86_64 architecture", "Validate delivered ticket", "Check Gatekeeper"):
             with self.subTest(label=label):
                 self.failure = label
                 with self.assertRaises(RuntimeError):
