@@ -27,6 +27,12 @@ See the [interactive side-by-side layout](https://veteranbv.github.io/creator-mi
 
 The companion app includes guided setup for app compatibility, both macOS permissions, safe profile configuration, dictation and physical tests. Reopen Creator Micro AI from Applications to see **Setup & Status**. The control reference is also bundled for offline use. macOS permission approvals remain yours to grant.
 
+## Get started
+
+Check [GitHub Releases](https://github.com/veteranbv/creator-micro-ai/releases) for a published, signed pre-release and its verification notes. Download the attached app ZIP, not GitHub's **Source code** archive. If no release is published, use the source-build instructions below.
+
+Follow [Install a signed download](docs/setup.md#install-a-signed-download), then complete the app's guided setup. You still need compatible Work Louder Input and desktop apps. A signed download does not require Xcode, Node, Python or jq to install; those tools are for development.
+
 ### The physical layout
 
 ![Illustrated Creator Micro keycaps beside their matching actions](docs/assets/layout-reference.svg)
@@ -45,7 +51,7 @@ Superwhisper is my choice for this setup and the tool used in dictation testing.
 
 ## Status
 
-This is a pre-release, source-built kit. Automated tests cover the profile, action-selection rules, shortcut construction and privacy checks. USB and Bluetooth four-layer switching and all controls have passed user-reported checks on the source build recorded in the [verification checklist](docs/verification.md). Detailed failure/recovery and compatibility checks remain pending.
+This is a pre-release kit. Automated tests cover the profile, action-selection rules, shortcut construction and privacy checks. The signed 0.2.1 build has user-reported USB and Bluetooth four-layer switching and signed-update permission-retention passes. All-control results belong to an earlier source build, not a complete retest of 0.2.1. See the [verification checklist](docs/verification.md) for exact builds and pending failure/recovery and compatibility checks.
 
 Bluetooth power-cycle/reconnect testing also has a user-reported pass on the earlier checkpoint recorded there. Follow the [Bluetooth setup steps](docs/setup.md#bluetooth-operation); profile writes remain USB-only until separately tested.
 

@@ -16,7 +16,7 @@ Use protected PRs for changes. Actions are pinned to full commit SHAs, with week
 
 ## Public layout page
 
-GitHub Pages serves the interactive layout at https://veteranbv.github.io/creator-micro-ai/. Configure Pages to deploy from the `main` branch's `/docs` directory. The `.nojekyll` file keeps these static files unprocessed; `index.html` opens `layout.html`, which also works locally.
+The intended GitHub Pages address is https://veteranbv.github.io/creator-micro-ai/. At public launch, configure Pages to deploy from the `main` branch's `/docs` directory. The `.nojekyll` file keeps these static files unprocessed; `index.html` opens `layout.html`, which also works locally. A README link or repository homepage setting does not enable Pages.
 
 Changes publish after they merge into main through the required checks and review. Only public documentation belongs in `/docs`. The page has no analytics or connection to the helper, device or desktop apps. Its gotchas link opens the rendered document on GitHub.
 
@@ -43,3 +43,14 @@ The offline hostname check uses the [IANA top-level-domain registry](https://dat
 - Run `python3 scripts/artwork_metadata.py` on changed PNG artwork before committing. This preserves image/color chunks and removes non-rendering metadata. The publication check rejects unsanitized PNGs, including in history.
 - Decide whether to distribute source only or acquire Developer ID signing/notarization for binaries. Ad-hoc signing is not notarization.
 - Do not publish old troubleshooting history, preferences, diagnostic captures or vendor firmware.
+
+## Public launch
+
+Keep the repository private and the release in draft while preparing publication. Pages can expose a site even while its repository is private, so enabling it is a publication action too.
+
+1. Audit repository files, every published branch/tag and Git identity, PR and issue discussions, Actions logs and artifacts, and the extracted app package. Visibility changes also expose Actions history. Review scanner findings in context; do not publish raw audit captures or local paths.
+2. Complete the release checklist above. Record remaining unverified cases explicitly in any pre-release notes; do not present a pre-release as completed stable acceptance.
+3. Create a draft pre-release targeting the exact source commit used for its signed ZIP. Attach only that ZIP and `SHA256SUMS`. Download the staged assets again, compare their hashes and verify the extracted app's signature, both architectures, stapled ticket and Gatekeeper assessment. Later documentation commits do not change the binary's source identity.
+4. After approval to publish, change repository visibility, enable private vulnerability reporting and secret scanning/push protection where available, and verify that the required checks and administrator protection remain active.
+5. Enable Pages from `main` and `/docs`. Wait for a successful deployment, then open the public address without repository authentication. Check all four layers, key highlighting, joystick directions, local assets, mobile layout and external links.
+6. Publish the verified pre-release. Check the release page and both downloads without authentication. Recheck Pages, repository protections and the social preview. Do not describe draft assets or an unbuilt Pages site as publicly available.
