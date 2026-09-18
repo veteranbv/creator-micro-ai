@@ -53,6 +53,8 @@ Superwhisper is my choice for this setup and the tool used in dictation testing.
 
 This is a pre-release kit. Automated tests cover the profile, action-selection rules, shortcut construction and privacy checks. The signed 0.2.1 build has user-reported USB and Bluetooth four-layer switching and signed-update permission-retention passes. All-control results belong to an earlier source build, not a complete retest of 0.2.1. See the [verification checklist](docs/verification.md) for exact builds and pending failure/recovery and compatibility checks.
 
+A native device-bridge crash during extended use is under investigation. Recovery after manually choosing Reopen is not an automatic-recovery pass. The next candidate adds process-isolated reconnection and bounded restart delays; hardware recovery and sustained-use testing remain pending.
+
 Bluetooth power-cycle/reconnect testing also has a user-reported pass on the earlier checkpoint recorded there. Follow the [Bluetooth setup steps](docs/setup.md#bluetooth-operation); profile writes remain USB-only until separately tested.
 
 ## Build and test

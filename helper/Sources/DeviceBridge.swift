@@ -1,29 +1,88 @@
 import AppKit
 import Foundation
 
+enum WorkspaceMode: String, CaseIterable {
+    case codex
+    case chatgpt
+    case claudeCode = "claude-code"
+    case claude
+
+    var processToken: String {
+        switch self {
+        case .codex: return "cc.worklouder.ai.codex"
+        case .claudeCode: return "cc.worklouder.ai.claude-code"
+        case .claude: return "cc.worklouder.ai.claude"
+        case .chatgpt: return "cc.worklouder.ai.chatgpt"
+        }
+    }
+
+    var layer: Int {
+        switch self {
+        case .codex: return 1
+        case .chatgpt: return 2
+        case .claudeCode: return 3
+        case .claude: return 4
+        }
+    }
+
+    var appURL: URL {
+        switch self {
+        case .codex, .chatgpt: return URL(fileURLWithPath: "/Applications/ChatGPT.app")
+        case .claudeCode, .claude: return URL(fileURLWithPath: "/Applications/Claude.app")
+        }
+    }
+
+    static func from(layer: Int) -> WorkspaceMode? {
+        allCases.first(where: { $0.layer == layer })
+    }
+}
+
+struct BridgeMessage: Decodable {
+    let type: String
+    let layer: Int?
+    let requestId: Int?
+}
+
 // Private inherited pipes, not a socket accessible to unrelated local processes.
 final class DeviceBridge {
     var onMessage: ((BridgeMessage) -> Void)?
+    var onFailure: ((HelperHealth.BridgeFailure) -> Void)?
     private var process: Process?
     private var input: FileHandle?
     private var output: FileHandle?
     private var buffer = Data()
     private var requestID = 0
     private var stopped = false
+    private var nextStart: TimeInterval = 0
+    private var failures = 0
+    private var readyAt: TimeInterval?
+    private let makeProcess: () -> Process?
+    private let uptime: () -> TimeInterval
 
-    func start() {
-        guard !stopped, process == nil else { return }
-        guard let script = Bundle.main.path(forResource: "worklouder_device_bridge", ofType: "js") else {
-            onMessage?(BridgeMessage(type: "error", layer: nil, requestId: nil))
-            retry()
-            return
-        }
-        let task = Process(), incoming = Pipe(), outgoing = Pipe()
+    init(makeProcess: @escaping () -> Process? = DeviceBridge.makeVendorProcess,
+         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+        self.makeProcess = makeProcess
+        self.uptime = now
+    }
+
+    static func makeVendorProcess() -> Process? {
+        guard let script = Bundle.main.path(forResource: "worklouder_device_bridge", ofType: "js") else { return nil }
+        let task = Process()
         task.executableURL = URL(fileURLWithPath: "/Applications/input.app/Contents/MacOS/input")
         task.arguments = [script]
         // Do not pass API keys or other shell environment values into the USB child.
         task.environment = ["ELECTRON_RUN_AS_NODE": "1", "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
                             "HOME": NSHomeDirectory(), "TMPDIR": NSTemporaryDirectory()]
+        return task
+    }
+
+    func start() {
+        guard !stopped, process == nil, uptime() >= nextStart else { return }
+        guard let task = makeProcess() else {
+            failed(.launchFailed)
+            return
+        }
+        let incoming = Pipe(), outgoing = Pipe()
         task.standardInput = incoming
         task.standardOutput = outgoing
         task.standardError = FileHandle.nullDevice
@@ -44,8 +103,9 @@ final class DeviceBridge {
                 guard let self, let task, self.process === task else { return }
                 self.closeHandles()
                 self.process = nil
-                self.onMessage?(BridgeMessage(type: "error", layer: nil, requestId: nil))
-                self.retry()
+                if !self.stopped {
+                    self.failed(task.terminationReason == .uncaughtSignal ? .crashed : .exited)
+                }
             }
         }
         do {
@@ -60,13 +120,21 @@ final class DeviceBridge {
             if task.isRunning { task.terminate() }
             closeHandles()
             process = nil
-            onMessage?(BridgeMessage(type: "error", layer: nil, requestId: nil))
-            retry()
+            failed(.launchFailed)
         }
     }
 
-    private func retry() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.start() }
+    private func failed(_ reason: HelperHealth.BridgeFailure) {
+        // A ready message alone must not reset a rapidly crashing child.
+        // Thirty healthy seconds resets the 3, 6, 12, 24, 30-second retry sequence.
+        if let readyAt, uptime() - readyAt >= 30 { failures = 0 }
+        readyAt = nil
+        let delay = min(30.0, 3.0 * pow(2.0, Double(failures)))
+        failures = min(failures + 1, 4)
+        nextStart = uptime() + delay
+        onFailure?(reason)
+        onMessage?(BridgeMessage(type: "error", layer: nil, requestId: nil))
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.start() }
     }
 
     func focus(_ mode: WorkspaceMode) -> Int? {
@@ -88,6 +156,7 @@ final class DeviceBridge {
             guard let message = try? JSONDecoder().decode(BridgeMessage.self, from: line),
                   ["ready", "layer", "applied", "error"].contains(message.type),
                   message.layer == nil || (1...4).contains(message.layer!) else { continue }
+            if message.type == "ready", message.layer != nil, readyAt == nil { readyAt = uptime() }
             onMessage?(message)
         }
         if buffer.count > 4096 { buffer.removeAll(); process?.terminate() }
@@ -104,6 +173,8 @@ final class DeviceBridge {
 
     func stop() {
         stopped = true
+        if let readyAt, uptime() - readyAt >= 30 { failures = 0 }
+        readyAt = nil
         closeHandles()
         process?.terminate()
     }
