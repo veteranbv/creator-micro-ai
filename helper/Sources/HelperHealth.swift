@@ -30,6 +30,7 @@ struct HelperHealth {
             bridgeFailure = nil
         case "error":
             connection = .unavailable
+            bridgeFailure = nil
             if switching == .pending { switching = .failed }
         default:
             break

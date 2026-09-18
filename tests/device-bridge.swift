@@ -25,13 +25,17 @@ enum DeviceBridgeTests {
         // permission requests, keyboard events or device connections are used.
         var children: [Process] = [], failures: [HelperHealth.BridgeFailure] = []
         var readyCount = 0
+        var health = HelperHealth()
         let bridge = DeviceBridge(makeProcess: {
             let child = fixture()
             children.append(child)
             return child
         })
-        bridge.onFailure = { failures.append($0) }
-        bridge.onMessage = { if $0.type == "ready" { readyCount += 1 } }
+        bridge.onFailure = { failures.append($0); health.bridgeFailed($0) }
+        bridge.onMessage = {
+            health.receive(type: $0.type, layer: $0.layer)
+            if $0.type == "ready" { readyCount += 1 }
+        }
         bridge.start()
         until("Initial ready handshake") { readyCount == 1 }
         precondition(bridge.focus(.codex) != nil)
@@ -39,6 +43,7 @@ enum DeviceBridgeTests {
         precondition(kill(children[0].processIdentifier, SIGKILL) == 0)
         until("Detect terminated child") { failures.count == 1 }
         precondition(failures[0] == .crashed)
+        precondition(health.bridgeFailure == .crashed, "Synthetic error must not erase the process failure reason")
         for _ in 0..<100 { bridge.start() }
         precondition(children.count == 1, "Status refresh must not bypass backoff")
         until("Automatic restart without Reopen") { readyCount == 2 }

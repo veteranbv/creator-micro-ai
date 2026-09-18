@@ -57,6 +57,13 @@ enum HelperHealthTests {
         precondition(health.connectionTitle.contains("could not launch"))
         health.bridgeFailed(.exited)
         precondition(health.connectionTitle.contains("restarting after connection failure"))
+        for failure in [HelperHealth.BridgeFailure.crashed, .exited, .launchFailed] {
+            health.bridgeFailed(failure)
+            health.receive(type: "error", layer: nil)
+            precondition(health.bridgeFailure == nil)
+            precondition(health.connectionTitle == "Device bridge: unavailable; retrying",
+                         "A live child's discovery error must replace the previous process failure")
+        }
         health.receive(type: "ready", layer: 2)
         health.accessibilityTrusted = false
         precondition(health.needsAttention && health.connection == .connected)

@@ -49,14 +49,15 @@ test('a stalled vendor operation exits the child for parent recovery',async()=>{
  io.stdin.end();
 });
 
-for (const failure of ['connect', 'status', 'focus', 'disconnect']) {
+for (const failure of ['constructor', 'connect', 'status', 'focus', 'disconnect']) {
  test(`native ${failure} failure exits without reopening a handle`, async()=>{
   const io=new EventEmitter();io.stdin=new PassThrough();io.stdout=new PassThrough();
-  let opened=0,closed=0,output='';
+  let constructed=0,opened=0,closed=0,output='';
   const exited=new Promise(resolve=>{io.exit=resolve;});
   io.stdout.on('data',d=>output+=d);
   const kit={WLDeviceDiscovery:class{findWLDevices(){return [{deviceType:'creator_micro_v2'}];}},
    WLDeviceCommImpl:class{
+    constructor(){constructed++;if(failure==='constructor')throw Error('PRIVATE_SENTINEL');}
     async connect(){opened++;if(failure==='connect')throw Error('PRIVATE_SENTINEL');return true;}
     async disconnect(){closed++;if(failure==='disconnect')throw Error('PRIVATE_SENTINEL');}},
    WLRPCApi:class{
@@ -65,10 +66,11 @@ for (const failure of ['connect', 'status', 'focus', 'disconnect']) {
   await run(kit,io);
   io.stdin.write(JSON.stringify({type:'focus',token:'cc.worklouder.ai.chatgpt',requestId:1})+'\n');
   assert.equal(await exited,1);
-  assert.equal(opened,1);assert.equal(closed,1);
+  assert.equal(constructed,1);
+  assert.equal(opened,failure==='constructor'?0:1);assert.equal(closed,failure==='constructor'?0:1);
   io.stdin.write(JSON.stringify({type:'focus',token:'cc.worklouder.ai.codex',requestId:2})+'\n');
   await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(opened,1);
+  assert.equal(constructed,1);assert.equal(opened,failure==='constructor'?0:1);
   assert.doesNotMatch(output,/PRIVATE_SENTINEL/);
   assert.ok(output.includes('"type":"error"'));
   io.stdin.end();
