@@ -4,9 +4,11 @@ import Foundation
 struct HelperHealth {
     enum Connection { case waiting, connected, unavailable }
     enum Switching { case idle, pending, sent, failed }
+    enum BridgeFailure { case crashed, exited, launchFailed }
 
     private(set) var connection: Connection = .waiting
     private(set) var switching: Switching = .idle
+    private(set) var bridgeFailure: BridgeFailure?
     var accessibilityTrusted = false
     var inputMonitoringTrusted = false
     private let startedAt: TimeInterval
@@ -25,6 +27,7 @@ struct HelperHealth {
                 return
             }
             connection = .connected
+            bridgeFailure = nil
         case "error":
             connection = .unavailable
             if switching == .pending { switching = .failed }
@@ -40,6 +43,7 @@ struct HelperHealth {
     }
 
     mutating func beginSwitch() { switching = .pending }
+    mutating func bridgeFailed(_ reason: BridgeFailure) { bridgeFailure = reason }
     mutating func finishSwitch(success: Bool) { switching = success ? .sent : .failed }
 
     var needsAttention: Bool {
@@ -50,7 +54,13 @@ struct HelperHealth {
         switch connection {
         case .waiting: return "Device bridge: connecting"
         case .connected: return "Device bridge: connected"
-        case .unavailable: return "Device bridge: unavailable; retrying"
+        case .unavailable:
+            switch bridgeFailure {
+            case .crashed: return "Device bridge: crashed; retrying within 30 seconds"
+            case .exited: return "Device bridge: restarting after connection failure"
+            case .launchFailed: return "Device bridge: could not launch; check Input installation"
+            case nil: return "Device bridge: unavailable; retrying"
+            }
         }
     }
 

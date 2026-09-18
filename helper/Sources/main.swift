@@ -2,48 +2,6 @@ import AppKit
 import ApplicationServices
 import Foundation
 
-enum WorkspaceMode: String, CaseIterable {
-    case codex
-    case chatgpt
-    case claudeCode = "claude-code"
-    case claude
-
-    var processToken: String {
-        switch self {
-        case .codex: return "cc.worklouder.ai.codex"
-        case .claudeCode: return "cc.worklouder.ai.claude-code"
-        case .claude: return "cc.worklouder.ai.claude"
-        case .chatgpt: return "cc.worklouder.ai.chatgpt"
-        }
-    }
-
-    var layer: Int {
-        switch self {
-        case .codex: return 1
-        case .chatgpt: return 2
-        case .claudeCode: return 3
-        case .claude: return 4
-        }
-    }
-
-    var appURL: URL {
-        switch self {
-        case .codex, .chatgpt: return URL(fileURLWithPath: "/Applications/ChatGPT.app")
-        case .claudeCode, .claude: return URL(fileURLWithPath: "/Applications/Claude.app")
-        }
-    }
-
-    static func from(layer: Int) -> WorkspaceMode? {
-        allCases.first(where: { $0.layer == layer })
-    }
-}
-
-struct BridgeMessage: Decodable {
-    let type: String
-    let layer: Int?
-    let requestId: Int?
-}
-
 private func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
     var value: CFTypeRef?
     guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else {
@@ -214,6 +172,7 @@ private var layerSelection = LayerSelection()
 private var focusRetryAfter = Date.distantPast
 private var lastPermissionState = trusted
 
+bridge.onFailure = { health.bridgeFailed($0) }
 bridge.onMessage = { message in
     health.receive(type: message.type, layer: message.layer)
     switch message.type {

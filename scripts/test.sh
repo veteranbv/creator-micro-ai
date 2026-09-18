@@ -24,6 +24,11 @@ if [[ "$(/usr/bin/uname -s)" == Darwin ]]; then
   "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/BridgePipe.swift tests/bridge-pipe.swift \
     -module-cache-path build/module-cache -o build/tests/bridge-pipe
   build/tests/bridge-pipe
+  "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/DeviceBridge.swift \
+    helper/Sources/BridgePipe.swift helper/Sources/HelperHealth.swift helper/Sources/SetupWindow.swift \
+    helper/Sources/SetupState.swift helper/Sources/SetupDeviceOperation.swift tests/device-bridge.swift \
+    -module-cache-path build/module-cache -framework AppKit -o build/tests/device-bridge
+  build/tests/device-bridge
   "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/ControllerActions.swift tests/controller-targets.swift \
     -module-cache-path build/module-cache -framework Carbon -framework AppKit -o build/tests/controller-targets
   build/tests/controller-targets

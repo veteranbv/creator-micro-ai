@@ -85,6 +85,15 @@ async function run(kit, io = process, { operationTimeoutMs = 5000 } = {}) {
   };
   const recover = async requestId => {
     fail(requestId);
+    // A failed native connection can retain resources even after vendor cleanup.
+    // Never open a second handle in that process. The parent owns restart timing.
+    if (communication) {
+      stopped = true;
+      clearInterval(interval);
+      try { await disconnect(); }
+      finally { io.exit(1); }
+      return;
+    }
     await disconnect();
     reconnectAfter = Date.now() + 1500;
   };

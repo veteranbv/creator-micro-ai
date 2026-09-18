@@ -1,5 +1,29 @@
 # Verification
 
+## Short candidate test plan
+
+Use the signed candidate identified by the maintainer, not an older installed build. Keep the device profile and both permission grants unchanged for the update test. Use synthetic text and harmless read-only approval requests. Stop and report any unexpected submission, Always allow selection, duplicate dictation or crash.
+
+1. **Update and status.** Open Creator Micro AI from Applications. In Setup & Status, check that Accessibility and Input Monitoring are trusted and the device bridge is connected. Record any permission prompt before changing settings.
+2. **USB controls.** With setup open, cycle 1 → 2 → 3 → 4 → 1 twice. Confirm the foreground app and view, not only the device color. In each layer, test dictation three times, Copy response, search/model controls, editing keys, all eight joystick directions and the dial. Each dictation attempt must insert exactly once. Copy response must select the assistant response, not your message or a code-block-only copy.
+3. **Approval safety.** In each layer, enter `KEEP THIS DRAFT`, then press Y and X with no approval visible. The draft must remain unchanged and unsent. Use two harmless permission requests to test Y allows once and X denies. Test both available approval layouts. Switch to another window before pressing an approval key; it must not approve a request in the old window. If a case cannot be arranged, report it as not tested.
+4. **Bluetooth controls.** Disconnect USB, connect Bluetooth, and repeat steps 2 and 3. Do not rewrite the profile over Bluetooth.
+5. **Reconnect and sleep.** On each connection type, disconnect or power off the device, reconnect, wait up to 40 seconds, and try the layer cycle. Repeat three times. Sleep and wake the Mac, then try again. If a crash dialog appears, do not click Reopen before checking recovery.
+6. **Apps and helper.** Quit and reopen each target app, then test its two layers. Quit Creator Micro AI from its menu and reopen it from Applications. Check status and switching. Permission-removal tests are coordinated separately so only this helper's two grants are changed and restored.
+7. **Normal use.** Use this same build for two working days, including sleep/wake and USB/Bluetooth changes. Report crashes, hangs, repeated permission prompts or unexpected actions. This is an acceptance target, not a completed test.
+
+Reply with the candidate version/build, USB pass/fail, Bluetooth pass/fail, approval safety pass/fail, reconnect/sleep pass/fail, and anything skipped. For failures, give the step, connection type and what happened. Do not post raw diagnostic reports or private conversation screenshots publicly.
+
+Only one Mac is available for this acceptance run. Second-machine testing is unavailable. Universal compilation is not proof of Intel hardware compatibility or support for other macOS versions. Record the tested OS and app versions, and keep broader compatibility unverified.
+
+## Bridge reliability investigation
+
+A native HID device-open crash was reported during extended use with Input 0.18.4. Switching worked after the user clicked Reopen; this does not demonstrate automatic recovery. The exact cause of that crash remains unconfirmed.
+
+The candidate isolates failed native connections by exiting the bridge child instead of reopening another handle in that process. Parent restart delays cannot be bypassed by status refreshes. Repeated failures back off to 30 seconds and reset only after a ready connection lasts 30 seconds. Current status distinguishes signal termination, connection restart and launch failure without recording raw errors or action history.
+
+Automated coverage includes JavaScript failure paths and real synthetic subprocesses for signal termination, automatic restart, ready messages, capped retry timing, setup pause/resume and shutdown. These tests do not load vendor code or access hardware. Candidate hardware recovery and sustained-use acceptance remain pending; do not mark the reported native crash resolved from these fixtures alone.
+
 ## Automated checks
 
 Run `bash scripts/test.sh`. The suite checks device mappings, private bridge messages, action-selection fixtures, balanced shortcut construction, publication privacy and review policy. GitHub CI runs on Ubuntu and macOS; only macOS builds the app and runs the Swift tests.

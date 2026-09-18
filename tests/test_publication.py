@@ -19,6 +19,13 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_swift_like_domains_are_not_exempted_in_source(self):
+        for member in (b"self" + b".now", b"RunLoop" + b".main.run"):
+            with self.subTest(member=member):
+                self.assertTrue(content_findings("fixture.swift", b'connect("' + member + b'")'))
+                self.assertTrue(content_findings("notes.md", member))
+                self.assertTrue(content_findings("fixture.swift", b'"https://' + member + b'/private"'))
+
     def test_repeated_numeric_escapes_cannot_extend_allowed_hosts(self):
         for escape in (b"x2e", b"u002e", b"u{2e}", b"056"):
             for count in (2, 3, 4, 8):
