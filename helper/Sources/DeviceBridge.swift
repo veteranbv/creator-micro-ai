@@ -132,8 +132,8 @@ final class DeviceBridge {
         let delay = min(30.0, 3.0 * pow(2.0, Double(failures)))
         failures = min(failures + 1, 4)
         nextStart = uptime() + delay
-        onFailure?(reason)
         onMessage?(BridgeMessage(type: "error", layer: nil, requestId: nil))
+        onFailure?(reason)
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.start() }
     }
 

@@ -42,6 +42,7 @@ function frameInput(stream, accept, invalid) {
 
 async function run(kit, io = process, { operationTimeoutMs = 5000 } = {}) {
   let communication, api, lastLayer, stopped = false, reconnectAfter = 0;
+  let nativeConnectionAttempted = false;
   let work = Promise.resolve(), pending = 0, pollPending = false;
   const emit = message => { if (!stopped) io.stdout.write(`${JSON.stringify(message)}\n`); };
   const fail = requestId => emit({ type: 'error', ...(requestId ? { requestId } : {}) });
@@ -77,6 +78,7 @@ async function run(kit, io = process, { operationTimeoutMs = 5000 } = {}) {
     if (Date.now() < reconnectAfter) throw new Error('RECONNECTING');
     const devices = new kit.WLDeviceDiscovery().findWLDevices().filter(d => d.deviceType === 'creator_micro_v2');
     if (devices.length !== 1) throw new Error('DEVICE_COUNT');
+    nativeConnectionAttempted = true;
     communication = new kit.WLDeviceCommImpl();
     if (await communication.connect(devices[0]) === false) throw new Error('CONNECT_FAILED');
     api = new kit.WLRPCApi(communication);
@@ -87,7 +89,7 @@ async function run(kit, io = process, { operationTimeoutMs = 5000 } = {}) {
     fail(requestId);
     // A failed native connection can retain resources even after vendor cleanup.
     // Never open a second handle in that process. The parent owns restart timing.
-    if (communication) {
+    if (nativeConnectionAttempted) {
       stopped = true;
       clearInterval(interval);
       try { await disconnect(); }
