@@ -29,22 +29,25 @@ enum ControllerTargetTests {
             print("PASS: \(name)")
         }
         // AX elements are opaque fixture identities; the injected reader never calls macOS.
-        let fixtureNodes = (1...8).map { AXUIElementCreateApplication(pid_t($0)) }
+        let fixtureNodes = (1...32).map { AXUIElementCreateApplication(pid_t($0)) }
         func reader(failureNode: Int? = nil, failureKey: String = kAXTitleAttribute,
                     failure: AXError = .cannotComplete, searchName: String = "Search") -> ControllerAccessibility {
             ControllerAccessibility { element, key in
                 let index = fixtureNodes.firstIndex { CFEqual($0, element) }!
                 if index == failureNode && key == failureKey { return (failure, nil) }
                 if key == kAXChildrenAttribute {
-                    let tree = [0: [1, 3, 5, 6], 1: [2], 3: [4]]
+                    let tree = [0: [7, 5, 6], 7: [1, 3], 1: [2], 3: [4]]
                     return (.success, (tree[index] ?? []).map { fixtureNodes[$0] } as CFArray)
                 }
                 if key == kAXTitleAttribute {
                     let names = [1: "Message 1", 2: "Claude responded: Earlier", 3: "Message 2",
-                                 4: "Claude responded: Latest", 5: searchName, 6: "Other"]
+                                 4: "Claude responded: Latest", 5: searchName, 6: "Other", 7: "Chat messages"]
                     return (.success, (names[index] ?? "") as CFString)
                 }
-                if key == kAXRoleAttribute { return (.success, (index >= 5 ? kAXButtonRole : kAXGroupRole) as CFString) }
+                if key == kAXRoleAttribute {
+                    let role = [2, 4].contains(index) ? "AXHeading" : ([5, 6].contains(index) ? kAXButtonRole : kAXGroupRole)
+                    return (.success, role as CFString)
+                }
                 if key == kAXEnabledAttribute { return (.success, kCFBooleanTrue) }
                 return (.attributeUnsupported, nil)
             }
@@ -60,6 +63,100 @@ enum ControllerTargetTests {
                 }
             }
         }
+        // Synthetic unnumbered Code response: transcript > body > final response > actions.
+        func claudeReader(tree: [Int: [Int]] = [0: [1], 1: [2], 2: [3, 4], 4: [5], 5: [6, 7]],
+                          names: [Int: String] = [:], roles: [Int: String] = [:],
+                          disabled: Set<Int> = [], failureNode: Int? = nil,
+                          failureKey: String = kAXChildrenAttribute,
+                          failure: AXError = .cannotComplete) -> ControllerAccessibility {
+            ControllerAccessibility { element, key in
+                let index = fixtureNodes.firstIndex { CFEqual($0, element) }!
+                if index == failureNode && key == failureKey { return (failure, nil) }
+                if key == kAXChildrenAttribute {
+                    return (.success, (tree[index] ?? []).map { fixtureNodes[$0] } as CFArray)
+                }
+                if key == kAXTitleAttribute {
+                    let defaults = [1: "Chat messages", 5: "Message actions", 6: "Copy", 7: "Read aloud"]
+                    return (.success, (names[index] ?? defaults[index] ?? "") as CFString)
+                }
+                if key == kAXRoleAttribute {
+                    let defaults = [3: kAXStaticTextRole, 5: kAXToolbarRole, 6: kAXButtonRole, 7: kAXButtonRole]
+                    return (.success, (roles[index] ?? defaults[index] ?? kAXGroupRole) as CFString)
+                }
+                if key == kAXEnabledAttribute { return (.success, disabled.contains(index) ? kCFBooleanFalse : kCFBooleanTrue) }
+                return (.attributeUnsupported, nil)
+            }
+        }
+        check(actions.latestClaudeMessage(fixtureNodes[0], using: claudeReader()).map { CFEqual($0, fixtureNodes[4]) } == true,
+              "unnumbered Code response is found inside Chat messages")
+        func claudeCopy(_ reads: ControllerAccessibility) -> AXUIElement? {
+            guard let message = actions.latestClaudeMessage(fixtureNodes[0], using: reads) else { return nil }
+            return actions.claudeCopyControl(message, using: reads)
+        }
+        check(claudeCopy(claudeReader()).map { CFEqual($0, fixtureNodes[6]) } == true,
+              "unnumbered assistant toolbar selects its full-response Copy")
+        let numberedTree = [0: [1], 1: [2], 2: [3, 4], 4: [8, 5], 5: [6, 7]]
+        for messageName in ["Message 24", "Message 24 of 24"] {
+            check(claudeCopy(claudeReader(tree: numberedTree,
+                names: [4: messageName, 8: "Claude responded: Example"], roles: [8: "AXHeading"]))
+                .map { CFEqual($0, fixtureNodes[6]) } == true, "numbered Code and Chat responses remain supported")
+            check(claudeCopy(claudeReader(tree: numberedTree,
+                names: [4: messageName, 8: "Claude responded: Example", 7: "Stop reading"], roles: [8: "AXHeading"])) != nil,
+                "known assistant heading does not depend on Read aloud playback state")
+            check(claudeCopy(claudeReader(tree: numberedTree,
+                names: [4: messageName, 8: "You said: Example"], roles: [8: "AXHeading"])) == nil,
+                "latest numbered user message cannot select an earlier response")
+        }
+        let revealReads = claudeReader(tree: [0: [1], 1: [2], 2: [3, 4], 4: [9]],
+            names: [9: "Show message actions"], roles: [9: kAXButtonRole])
+        let revealMessage = actions.latestClaudeMessage(fixtureNodes[0], using: revealReads)
+        check(revealMessage != nil && CFEqual(revealMessage!, fixtureNodes[4]),
+              "hidden unnumbered toolbar retains the same response identity")
+        check(actions.claudeActionReveal(revealMessage!, using: revealReads)
+            .map { CFEqual($0, fixtureNodes[9]) } == true, "unique reveal is scoped to the newest body")
+        check(actions.claudeCopyControl(revealMessage!, using: revealReads) == nil,
+              "hidden toolbar is not mistaken for Copy")
+        check(claudeCopy(claudeReader(tree: [0: [10], 10: [1], 1: [2], 2: [3, 4], 4: [5], 5: [6, 7]],
+            names: [10: "Chat messages"])) != nil, "nested live-region transcript wrappers are accepted")
+        check(claudeCopy(claudeReader(tree: [0: [10, 1], 1: [2], 2: [3, 4], 4: [5], 5: [6, 7]],
+            names: [10: "Chat messages"])) == nil, "separate conversation panes are ambiguous")
+        for terminal in ["Loading", "Message 25", "Unknown new layout"] {
+            check(claudeCopy(claudeReader(tree: [0: [1], 1: [2], 2: [4, 10], 4: [5], 5: [6, 7]],
+                names: [10: terminal])) == nil, "unsupported newest content never selects an older toolbar")
+        }
+        check(claudeCopy(claudeReader(tree: [0: [1], 1: [2], 2: [10, 4], 10: [11], 11: [12, 13],
+            4: [5], 5: [6, 7]], names: [11: "Message actions", 12: "Copy", 13: "Read aloud"],
+            roles: [11: kAXToolbarRole, 12: kAXButtonRole, 13: kAXButtonRole]))
+            .map { CFEqual($0, fixtureNodes[6]) } == true, "older visible toolbar does not compete with the newest response")
+        check(claudeCopy(claudeReader(tree: [0: [1], 1: [2], 2: [4], 4: [10, 5], 10: [11], 5: [6, 7]],
+            names: [10: "Edited files", 11: "Copy"], roles: [11: kAXButtonRole]))
+            .map { CFEqual($0, fixtureNodes[6]) } == true, "file panels and body Copy controls do not compete with the toolbar")
+        for name in ["Rewind to here", "Fork from here", "Copied", ""] {
+            check(claudeCopy(claudeReader(names: [7: name])) == nil,
+                  "unnumbered toolbar without assistant evidence is rejected")
+        }
+        for name in ["Copy code", "Copied", "Copy message"] {
+            check(claudeCopy(claudeReader(names: [6: name])) == nil, "only full-response Copy qualifies")
+        }
+        for disabled: Set<Int> in [[6], [7]] {
+            check(claudeCopy(claudeReader(disabled: disabled)) == nil, "disabled unnumbered toolbar evidence fails closed")
+        }
+        for name in ["Copy", "Read aloud"] {
+            check(claudeCopy(claudeReader(tree: [0: [1], 1: [2], 2: [4], 4: [5], 5: [6, 7, 8]],
+                names: [8: name], roles: [8: kAXButtonRole])) == nil, "duplicate toolbar controls fail closed")
+        }
+        check(claudeCopy(claudeReader(tree: [0: [1], 1: [2], 2: [4], 4: [8, 5], 5: [6, 7]],
+            names: [8: "Message actions"], roles: [8: kAXToolbarRole])) == nil, "multiple toolbars within one response are ambiguous")
+        for node in [1, 2, 4, 5, 6, 7] {
+            for key in [kAXChildrenAttribute, kAXRoleAttribute, kAXTitleAttribute] {
+                for error in [AXError.cannotComplete, .invalidUIElement, .success] {
+                    check(claudeCopy(claudeReader(failureNode: node, failureKey: key, failure: error)) == nil,
+                          "unreadable Claude structure never supplies a Copy target")
+                }
+            }
+        }
+        check(claudeCopy(claudeReader(tree: [0: [1], 1: [2], 2: [2, 4], 4: [5], 5: [6, 7]])) == nil,
+              "cyclic or truncated transcript fails within the traversal bound")
         for name in ["Search", "Model: Example"] {
             let clean = reader(searchName: name)
             check(CFEqual(clean.uniqueControl(in: clean.descendants(fixtureNodes[0])!, matching: { $0 == name })!, fixtureNodes[5]),
@@ -125,6 +222,62 @@ enum ControllerTargetTests {
         check(directCopy(["ChatGPT said:", "body group", "You said:", "Copy"]) == nil,
               "does not cross into a later user section")
         check(directCopy(["ChatGPT said:", "Copy", "Copy"]) == nil, "multiple direct Copy buttons fail closed")
+        func openAIReader(newClasses: [String] = ["relative", "shrink-0"],
+                          newChildren: [Int] = [5, 6], name: String = "Copy",
+                          failureNode: Int? = nil, failureKey: String = kAXChildrenAttribute) -> ControllerAccessibility {
+            ControllerAccessibility { element, key in
+                let index = fixtureNodes.firstIndex { CFEqual($0, element) }!
+                if index == failureNode && key == failureKey { return (.cannotComplete, nil) }
+                if key == kAXChildrenAttribute {
+                    let tree = [0: [1, 4], 1: [2, 3], 4: newChildren, 7: [8]]
+                    return (.success, (tree[index] ?? []).map { fixtureNodes[$0] } as CFArray)
+                }
+                if key == kAXRoleAttribute {
+                    return (.success, ([2, 5, 9].contains(index) ? "AXHeading" :
+                        ([3, 6, 8].contains(index) ? kAXButtonRole : kAXGroupRole)) as CFString)
+                }
+                if key == kAXTitleAttribute {
+                    return (.success, ([2: "ChatGPT said:", 3: "Copy", 5: "ChatGPT said: Latest", 6: name,
+                                       8: "Copy", 9: "You said:"][index] ?? "") as CFString)
+                }
+                if key == "AXDOMClassList" {
+                    return (.success, (index == 1 ? ["relative", "shrink-0"] :
+                        (index == 4 ? newClasses : (index == 7 ? ["contents"] : []))) as CFArray)
+                }
+                if key == kAXEnabledAttribute { return (.success, kCFBooleanTrue) }
+                return (.attributeUnsupported, nil)
+            }
+        }
+        func newestOpenAICopy(_ reads: ControllerAccessibility) -> AXUIElement? {
+            guard let all = reads.descendants(fixtureNodes[0]),
+                  let children = actions.latestOpenAIResponse(in: all, using: reads) else { return nil }
+            return actions.openAIResponseCopy(in: children, using: reads)
+        }
+        check(newestOpenAICopy(openAIReader()).map { CFEqual($0, fixtureNodes[6]) } == true,
+              "whole-window selector uses the newest assistant heading")
+        check(newestOpenAICopy(openAIReader(newChildren: [5, 7])).map { CFEqual($0, fixtureNodes[8]) } == true,
+              "newest response retains observed one-child Copy wrapper support")
+        for classes in [[], ["unknown-response"], ["relative"]] {
+            check(newestOpenAICopy(openAIReader(newClasses: classes)) == nil,
+                  "newest assistant heading in an unsupported group blocks older Copy")
+        }
+        for children in [[5], [5, 6, 7], [5, 9, 6]] {
+            check(newestOpenAICopy(openAIReader(newChildren: children)) == nil,
+                  "missing, ambiguous or user-section newest Copy never falls back")
+        }
+        for name in ["Copied", "Copy code"] {
+            check(newestOpenAICopy(openAIReader(name: name)) == nil, "newest non-Copy state blocks older response")
+        }
+        for node in [4, 5, 6] {
+            for key in [kAXChildrenAttribute, kAXRoleAttribute, kAXTitleAttribute] {
+                // Container titles are not part of OpenAI response identity; DOM classes are.
+                if node == 4 && key == kAXTitleAttribute { continue }
+                check(newestOpenAICopy(openAIReader(failureNode: node, failureKey: key)) == nil,
+                      "unreadable newest OpenAI evidence fails closed")
+            }
+        }
+        check(newestOpenAICopy(openAIReader(failureNode: 4, failureKey: "AXDOMClassList")) == nil,
+              "unreadable newest response classes do not permit older fallback")
         func copyReader(wrappedChildren: [Int] = [2], classes: [String] = ["contents"],
                         name: String = "Copy", enabled: Bool = true,
                         failureNode: Int? = nil, failureKey: String = kAXChildrenAttribute,

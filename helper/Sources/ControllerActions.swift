@@ -257,13 +257,49 @@ final class ControllerActions {
     }
     func latestClaudeMessage(_ window: AXUIElement, using reads: ControllerAccessibility) -> AXUIElement? {
         guard let nodes = reads.descendants(window) else { return nil }
-        for element in nodes.reversed() where reads.labels(element).contains(where: ControllerTargetPolicy.isClaudeMessageName) {
-            guard reads.complete, let contents = reads.descendants(element, limit: 1000) else { return nil }
-            let response = contents.contains(where: { reads.labels($0).contains { $0.hasPrefix("Claude responded:") } })
-            guard reads.complete else { return nil }
-            if response { return element }
+        let panes = nodes.filter { reads.role($0) == kAXGroupRole && reads.matches($0, ["Chat messages"]) }
+        guard let pane = panes.last, reads.complete else { return nil }
+        // Nested live-region wrappers are allowed; separate conversation panes are ambiguous.
+        for outer in panes.dropLast() {
+            guard let contents = reads.descendants(outer), contents.contains(where: { CFEqual($0, pane) }) else { return nil }
+        }
+        var current = pane
+        // Follow only the terminal branch. Never search backward past an unknown newest turn.
+        for _ in nodes.indices {
+            guard reads.role(current) == kAXGroupRole, let children = reads.children(current), reads.complete else { return nil }
+            let names = reads.labels(current)
+            if names.contains(where: ControllerTargetPolicy.isClaudeMessageName) {
+                guard let contents = reads.descendants(current, limit: 1000) else { return nil }
+                let response = contents.contains {
+                    reads.role($0) == "AXHeading" && reads.labels($0).contains { $0.hasPrefix("Claude responded:") }
+                }
+                return reads.complete && response ? current : nil
+            }
+            guard names.allSatisfy({ $0.isEmpty || $0 == "Chat messages" }), let last = children.last else { return nil }
+            let toolbar = reads.role(last) == kAXToolbarRole && reads.matches(last, ["Message actions"])
+            let reveal = reads.actionable(last) && reads.labels(last).contains(where: ControllerTargetPolicy.isClaudeActionReveal)
+            if toolbar || reveal {
+                // Unnumbered Code responses end with actions directly inside the final body group.
+                return reads.complete && names.allSatisfy(\.isEmpty) ? current : nil
+            }
+            current = last
         }
         return nil
+    }
+    func latestOpenAIResponse(in nodes: [AXUIElement], using reads: ControllerAccessibility) -> [AXUIElement]? {
+        let headings = nodes.filter {
+            reads.role($0) == "AXHeading"
+                && reads.labels($0).contains { $0 == "ChatGPT said:" || $0.hasPrefix("ChatGPT said: ") }
+        }
+        guard let newest = headings.last, reads.complete else { return nil }
+        var candidates: [[AXUIElement]] = []
+        for node in nodes where reads.role(node) == kAXGroupRole
+            && ControllerTargetPolicy.isOpenAIResponseGroup(reads.read(node, "AXDOMClassList", absent: [String]())) {
+            guard let children = reads.children(node) else { return nil }
+            if children.contains(where: { CFEqual($0, newest) }) { candidates.append(children) }
+        }
+        // A newer heading in an unsupported group invalidates every older matching group.
+        return reads.complete && candidates.count == 1 ? candidates[0] : nil
     }
     func openAIResponseCopy(in children: [AXUIElement], using reads: ControllerAccessibility) -> AXUIElement? {
         func heading(_ node: AXUIElement, _ name: String) -> Bool {
@@ -288,14 +324,24 @@ final class ControllerActions {
         guard let target, !reads.matches(target, ["Copied"]), reads.complete else { return nil }
         return target
     }
-    private func claudeCopyControl(_ message: AXUIElement, using reads: ControllerAccessibility) -> AXUIElement? {
+    func claudeCopyControl(_ message: AXUIElement, using reads: ControllerAccessibility) -> AXUIElement? {
         guard let contents = reads.descendants(message, limit: 1000) else { return nil }
         let toolbars = contents.filter {
             reads.role($0) == kAXToolbarRole && reads.matches($0, ["Message actions"])
         }
         guard toolbars.count == 1, let buttons = reads.descendants(toolbars[0], limit: 100) else { return nil }
         let copies = buttons.filter { reads.actionable($0) && reads.matches($0, ["Copy"]) }
-        return reads.complete && copies.count == 1 ? copies[0] : nil
+        // User-message toolbars also have Copy and Fork, but not the assistant Read aloud action.
+        let numbered = reads.labels(message).contains(where: ControllerTargetPolicy.isClaudeMessageName)
+        let readers = buttons.filter { reads.actionable($0) && reads.matches($0, ["Read aloud"]) }
+        return reads.complete && copies.count == 1 && (numbered || readers.count == 1) ? copies[0] : nil
+    }
+    func claudeActionReveal(_ message: AXUIElement, using reads: ControllerAccessibility) -> AXUIElement? {
+        guard let contents = reads.descendants(message, limit: 1000) else { return nil }
+        let controls = contents.filter {
+            reads.actionable($0) && reads.labels($0).contains(where: ControllerTargetPolicy.isClaudeActionReveal)
+        }
+        return reads.complete && controls.count == 1 ? controls[0] : nil
     }
     private func finishCopy(_ success: Bool) {
         copyPending = false
@@ -348,29 +394,14 @@ final class ControllerActions {
             // A truncated window tree cannot establish which response is last.
             guard all.count < 5000 else { finishCopy(false); return }
             if !claude {
-                // Copy's parent can be a flattened turn group.
-                let assistantHeading: (AXUIElement) -> Bool = {
-                    reads.role($0) == "AXHeading"
-                        && reads.labels($0).contains { $0 == "ChatGPT said:" || $0.hasPrefix("ChatGPT said: ") }
-                }
-                var latestChildren: [AXUIElement]?
-                for node in all where reads.role(node) == kAXGroupRole
-                    && ControllerTargetPolicy.isOpenAIResponseGroup(reads.read(node, "AXDOMClassList", absent: [String]())) {
-                    guard let contents = reads.children(node) else { finishCopy(false); return }
-                    if contents.contains(where: assistantHeading) { latestChildren = contents }
-                }
-                if let latestChildren {
+                if let latestChildren = latestOpenAIResponse(in: all, using: reads) {
                     target = openAIResponseCopy(in: latestChildren, using: reads)
                 }
             } else {
                 if let message = latestClaudeMessage(window, using: reads) {
                     target = claudeCopyControl(message, using: reads)
                     if target == nil {
-                        guard reads.complete, let contents = reads.descendants(message, limit: 1000) else { finishCopy(false); return }
-                        let reveal = contents.filter {
-                            reads.actionable($0) && reads.labels($0).contains(where: ControllerTargetPolicy.isClaudeActionReveal)
-                        }
-                        if reads.complete, reveal.count == 1, press(reveal[0], app: app, window: window) {
+                        if let reveal = claudeActionReveal(message, using: reads), press(reveal, app: app, window: window) {
                             copyPending = true
                             waitForClaudeCopy(app: app, window: window, message: message, attempts: 6)
                             return
