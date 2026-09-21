@@ -111,7 +111,7 @@ enum ControllerTargetTests {
         func directCopy(_ children: [String]) -> String? {
             ControllerTargetPolicy.directResponseCopy(children: children,
                 isAssistantHeading: { $0 == "ChatGPT said:" }, isUserHeading: { $0 == "You said:" },
-                isCopy: { ["Copy", "Copied"].contains($0) })
+                copyControl: { ["Copy", "Copied"].contains($0) ? $0 : nil })
         }
         check(directCopy(["You said:", "attachment", "10:00 AM", "Copy message", "Worked for 1m",
                           "ChatGPT said:", "status", "body group", "nested code group", "Copy", "10:01 AM"]) == "Copy",
@@ -125,6 +125,69 @@ enum ControllerTargetTests {
         check(directCopy(["ChatGPT said:", "body group", "You said:", "Copy"]) == nil,
               "does not cross into a later user section")
         check(directCopy(["ChatGPT said:", "Copy", "Copy"]) == nil, "multiple direct Copy buttons fail closed")
+        func copyReader(wrappedChildren: [Int] = [2], classes: [String] = ["contents"],
+                        name: String = "Copy", enabled: Bool = true,
+                        failureNode: Int? = nil, failureKey: String = kAXChildrenAttribute,
+                        failure: AXError = .cannotComplete) -> ControllerAccessibility {
+            ControllerAccessibility { element, key in
+                let index = fixtureNodes.firstIndex { CFEqual($0, element) }!
+                if index == failureNode && key == failureKey { return (failure, nil) }
+                if key == kAXChildrenAttribute {
+                    let children = index == 1 ? wrappedChildren : (index == 5 ? [6] : [])
+                    return (.success, children.map { fixtureNodes[$0] } as CFArray)
+                }
+                if key == kAXRoleAttribute {
+                    let role = [0, 3].contains(index) ? "AXHeading" : ([1, 5].contains(index) ? kAXGroupRole : kAXButtonRole)
+                    return (.success, role as CFString)
+                }
+                if key == kAXTitleAttribute {
+                    let names = [0: "ChatGPT said:", 3: "You said:", 2: name, 4: "Copy", 6: "Copy"]
+                    return (.success, (names[index] ?? "") as CFString)
+                }
+                if key == "AXDOMClassList" { return (.success, (index == 1 ? classes : ["code-block"]) as CFArray) }
+                if key == kAXEnabledAttribute { return (.success, (enabled ? kCFBooleanTrue : kCFBooleanFalse)) }
+                return (.attributeUnsupported, nil)
+            }
+        }
+        func responseCopy(_ children: [Int], _ reads: ControllerAccessibility? = nil) -> AXUIElement? {
+            actions.openAIResponseCopy(in: children.map { fixtureNodes[$0] }, using: reads ?? copyReader())
+        }
+        check(responseCopy([0, 1]).map { CFEqual($0, fixtureNodes[2]) } == true,
+              "observed contents wrapper resolves to its Copy button, not the group")
+        check(responseCopy([0, 4]).map { CFEqual($0, fixtureNodes[4]) } == true,
+              "unwrapped response Copy remains supported")
+        check(responseCopy([0, 5, 1]).map { CFEqual($0, fixtureNodes[2]) } == true,
+              "body code-block Copy is ignored beside the response wrapper")
+        check(responseCopy([0, 5]) == nil, "code-block Copy alone is not response Copy")
+        check(responseCopy([0, 1, 4]) == nil, "wrapped and direct Copy together are ambiguous")
+        check(responseCopy([0, 1, 1]) == nil, "duplicate wrapped candidates fail closed")
+        check(responseCopy([0, 4, 3, 0, 1], copyReader(name: "Copied")) == nil,
+              "wrapped Copied state never falls back to an earlier response")
+        check(responseCopy([0, 4, 3, 0, 5]) == nil, "missing newest Copy never uses an earlier response")
+        check(responseCopy([0, 3, 1]) == nil, "wrapped Copy after a user heading is excluded")
+        check(responseCopy([3, 1]) == nil, "user-only wrapper is excluded")
+        for children in [[], [2, 6], [5]] {
+            check(responseCopy([0, 1], copyReader(wrappedChildren: children)) == nil,
+                  "empty, multi-child and nested wrappers are not searched")
+        }
+        for classes in [[], ["other"], ["contents", "code-block"]] {
+            check(responseCopy([0, 1], copyReader(classes: classes)) == nil,
+                  "only the observed contents-only wrapper is accepted")
+        }
+        check(responseCopy([0, 1], copyReader(enabled: false)) == nil, "disabled wrapped Copy is rejected")
+        for name in ["Copy message", "Copy code", "Other"] {
+            check(responseCopy([0, 1], copyReader(name: name)) == nil, "unrecognized wrapped control is rejected")
+        }
+        for error in [AXError.cannotComplete, .invalidUIElement, .failure, .success] {
+            for key in [kAXChildrenAttribute, "AXDOMClassList", kAXRoleAttribute] {
+                check(responseCopy([0, 1, 4], copyReader(failureNode: 1, failureKey: key, failure: error)) == nil,
+                      "unreadable wrapper cannot hide a competing direct Copy")
+            }
+            for key in [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute, kAXRoleAttribute, kAXEnabledAttribute] {
+                check(responseCopy([0, 1, 4], copyReader(failureNode: 2, failureKey: key, failure: error)) == nil,
+                      "unreadable wrapped Copy invalidates the selection")
+            }
+        }
         for name in ["Message 132", "Message 2 of 2", "Message 1 of 25"] {
             check(ControllerTargetPolicy.isClaudeMessageName(name), "recognizes \(name)")
         }

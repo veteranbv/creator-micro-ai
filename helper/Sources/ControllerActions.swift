@@ -37,11 +37,11 @@ enum ControllerTargetPolicy {
     }
 
     static func directResponseCopy<Node>(children: [Node], isAssistantHeading: (Node) -> Bool,
-        isUserHeading: (Node) -> Bool, isCopy: (Node) -> Bool) -> Node? {
+        isUserHeading: (Node) -> Bool, copyControl: (Node) -> Node?) -> Node? {
         guard let heading = children.lastIndex(where: isAssistantHeading) else { return nil }
         // Accessibility can flatten a turn's heading, body groups, and buttons into siblings.
         let response = children.dropFirst(heading + 1).prefix { !isUserHeading($0) }
-        let copies = response.filter(isCopy)
+        let copies = response.compactMap(copyControl)
         return copies.count == 1 ? copies[0] : nil
     }
 
@@ -265,6 +265,29 @@ final class ControllerActions {
         }
         return nil
     }
+    func openAIResponseCopy(in children: [AXUIElement], using reads: ControllerAccessibility) -> AXUIElement? {
+        func heading(_ node: AXUIElement, _ name: String) -> Bool {
+            reads.role(node) == "AXHeading"
+                && reads.labels(node).contains { $0 == name || $0.hasPrefix(name + " ") }
+        }
+        func isCopy(_ node: AXUIElement) -> Bool {
+            reads.actionable(node) && reads.matches(node, ["Copy", "Copied", "Copy response"])
+        }
+        let target = ControllerTargetPolicy.directResponseCopy(children: children,
+            isAssistantHeading: { heading($0, "ChatGPT said:") },
+            isUserHeading: { heading($0, "You said:") }, copyControl: { node in
+                if isCopy(node) { return node }
+                // The observed tooltip wrapper exposes exactly one button. Do not
+                // search arbitrary body groups, which can contain code-block copies.
+                guard reads.role(node) == kAXGroupRole,
+                      reads.read(node, "AXDOMClassList", absent: [String]()) == ["contents"],
+                      let wrapped = reads.children(node), wrapped.count == 1,
+                      isCopy(wrapped[0]) else { return nil }
+                return wrapped[0]
+            })
+        guard let target, !reads.matches(target, ["Copied"]), reads.complete else { return nil }
+        return target
+    }
     private func claudeCopyControl(_ message: AXUIElement, using reads: ControllerAccessibility) -> AXUIElement? {
         guard let contents = reads.descendants(message, limit: 1000) else { return nil }
         let toolbars = contents.filter {
@@ -325,17 +348,10 @@ final class ControllerActions {
             // A truncated window tree cannot establish which response is last.
             guard all.count < 5000 else { finishCopy(false); return }
             if !claude {
-                // Installed app: tooltip is Copy response, but aria-label is Copy.
-                // Include Copied when selecting the latest row so a second tap cannot copy an older response.
-                let isCopy: (AXUIElement) -> Bool = { reads.actionable($0) && reads.matches($0, ["Copy", "Copied", "Copy response"]) }
                 // Copy's parent can be a flattened turn group.
                 let assistantHeading: (AXUIElement) -> Bool = {
                     reads.role($0) == "AXHeading"
                         && reads.labels($0).contains { $0 == "ChatGPT said:" || $0.hasPrefix("ChatGPT said: ") }
-                }
-                let userHeading: (AXUIElement) -> Bool = {
-                    reads.role($0) == "AXHeading"
-                        && reads.labels($0).contains { $0 == "You said:" || $0.hasPrefix("You said: ") }
                 }
                 var latestChildren: [AXUIElement]?
                 for node in all where reads.role(node) == kAXGroupRole
@@ -344,10 +360,8 @@ final class ControllerActions {
                     if contents.contains(where: assistantHeading) { latestChildren = contents }
                 }
                 if let latestChildren {
-                    target = ControllerTargetPolicy.directResponseCopy(children: latestChildren,
-                        isAssistantHeading: assistantHeading, isUserHeading: userHeading, isCopy: isCopy)
+                    target = openAIResponseCopy(in: latestChildren, using: reads)
                 }
-                if let candidate = target, reads.matches(candidate, ["Copied"]) { target = nil }
             } else {
                 if let message = latestClaudeMessage(window, using: reads) {
                     target = claudeCopyControl(message, using: reads)
