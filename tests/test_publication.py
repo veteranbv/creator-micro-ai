@@ -19,6 +19,27 @@ import privacy_check
 
 
 class PublicationTests(unittest.TestCase):
+    def test_swift_member_exception_excludes_strings_and_comments(self):
+        member = b"children" + b".map"
+        self.assertFalse(content_findings("fixture.swift", b"let values = " + member + b" { $0 }"))
+        self.assertFalse(content_findings("fixture.swift", b'let text = "safe"\n' + member + b" { $0 }"))
+        for prefix, suffix in ((b'connect("', b'")'), (b'"""\n', b'\n"""'),
+                               (b'#"', b'"#'), (b'##"""\n', b'\n"""##'),
+                               (b'// ', b'\n'), (b'/* outer /* nested */ ', b' */'),
+                               (b'"escaped \\" ', b'"'), (b'"unterminated ', b''),
+                               (b'/', b'/'), (b'"https://', b'"')):
+            for name in ("fixture.swift", "fixture.py", "fixture.js", "notes.md"):
+                with self.subTest(prefix=prefix, name=name):
+                    self.assertTrue(content_findings(name, prefix + member + suffix))
+        self.assertTrue(content_findings("fixture.swift", member + b' { $0 }; connect("' + member + b'")'))
+        self.assertTrue(content_findings("fixture.swift", b'connect("children' + b'\\u{2e}map")'))
+        self.assertTrue(content_findings("fixture.swift", b'let regex = /"/; connect("' + member + b'")'))
+        for hashes in (b"", b"#", b"##"):
+            interpolation = hashes + b'"value \\' + hashes + b'(call("' + member + b'"))"' + hashes
+            self.assertTrue(content_findings("fixture.swift", interpolation))
+            safe = hashes + b'"value \\' + hashes + b'(call("safe"))"' + hashes
+            self.assertFalse(content_findings("fixture.swift", safe + b'\n' + member + b' { $0 }'))
+
     def test_swift_like_domains_are_not_exempted_in_source(self):
         for member in (b"self" + b".now", b"RunLoop" + b".main.run"):
             with self.subTest(member=member):

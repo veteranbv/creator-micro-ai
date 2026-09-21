@@ -95,6 +95,8 @@ enum ControllerTargetTests {
         }
         check(claudeCopy(claudeReader()).map { CFEqual($0, fixtureNodes[6]) } == true,
               "unnumbered assistant toolbar selects its full-response Copy")
+        check(claudeCopy(claudeReader(names: [7: "Stop reading"]))
+            .map { CFEqual($0, fixtureNodes[6]) } == true, "active read-aloud retains unnumbered response Copy")
         let numberedTree = [0: [1], 1: [2], 2: [3, 4], 4: [8, 5], 5: [6, 7]]
         for messageName in ["Message 24", "Message 24 of 24"] {
             check(claudeCopy(claudeReader(tree: numberedTree,
@@ -141,7 +143,7 @@ enum ControllerTargetTests {
         for disabled: Set<Int> in [[6], [7]] {
             check(claudeCopy(claudeReader(disabled: disabled)) == nil, "disabled unnumbered toolbar evidence fails closed")
         }
-        for name in ["Copy", "Read aloud"] {
+        for name in ["Copy", "Read aloud", "Stop reading"] {
             check(claudeCopy(claudeReader(tree: [0: [1], 1: [2], 2: [4], 4: [5], 5: [6, 7, 8]],
                 names: [8: name], roles: [8: kAXButtonRole])) == nil, "duplicate toolbar controls fail closed")
         }
@@ -224,21 +226,22 @@ enum ControllerTargetTests {
         check(directCopy(["ChatGPT said:", "Copy", "Copy"]) == nil, "multiple direct Copy buttons fail closed")
         func openAIReader(newClasses: [String] = ["relative", "shrink-0"],
                           newChildren: [Int] = [5, 6], name: String = "Copy",
+                          nestedChildren: [Int] = [], nestedHeading: String = "ChatGPT said: Example",
                           failureNode: Int? = nil, failureKey: String = kAXChildrenAttribute) -> ControllerAccessibility {
             ControllerAccessibility { element, key in
                 let index = fixtureNodes.firstIndex { CFEqual($0, element) }!
                 if index == failureNode && key == failureKey { return (.cannotComplete, nil) }
                 if key == kAXChildrenAttribute {
-                    let tree = [0: [1, 4], 1: [2, 3], 4: newChildren, 7: [8]]
+                    let tree = [0: [1, 4], 1: [2, 3], 4: newChildren, 7: [8], 10: nestedChildren]
                     return (.success, (tree[index] ?? []).map { fixtureNodes[$0] } as CFArray)
                 }
                 if key == kAXRoleAttribute {
-                    return (.success, ([2, 5, 9].contains(index) ? "AXHeading" :
+                    return (.success, ([2, 5, 9, 11].contains(index) ? "AXHeading" :
                         ([3, 6, 8].contains(index) ? kAXButtonRole : kAXGroupRole)) as CFString)
                 }
                 if key == kAXTitleAttribute {
                     return (.success, ([2: "ChatGPT said:", 3: "Copy", 5: "ChatGPT said: Latest", 6: name,
-                                       8: "Copy", 9: "You said:"][index] ?? "") as CFString)
+                                       8: "Copy", 9: "You said:", 11: nestedHeading][index] ?? "") as CFString)
                 }
                 if key == "AXDOMClassList" {
                     return (.success, (index == 1 ? ["relative", "shrink-0"] :
@@ -255,6 +258,12 @@ enum ControllerTargetTests {
         }
         check(newestOpenAICopy(openAIReader()).map { CFEqual($0, fixtureNodes[6]) } == true,
               "whole-window selector uses the newest assistant heading")
+        for title in ["ChatGPT said:", "ChatGPT said: Example"] {
+            check(newestOpenAICopy(openAIReader(newChildren: [5, 10, 6], nestedChildren: [11], nestedHeading: title))
+                .map { CFEqual($0, fixtureNodes[6]) } == true, "nested Markdown heading cannot replace a semantic response heading")
+            check(newestOpenAICopy(openAIReader(newClasses: ["unknown"], newChildren: [5, 10, 6],
+                nestedChildren: [11], nestedHeading: title)) == nil, "unrecognized newest group still blocks older Copy with nested headings")
+        }
         check(newestOpenAICopy(openAIReader(newChildren: [5, 7])).map { CFEqual($0, fixtureNodes[8]) } == true,
               "newest response retains observed one-child Copy wrapper support")
         for classes in [[], ["unknown-response"], ["relative"]] {
