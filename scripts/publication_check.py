@@ -45,7 +45,7 @@ SOURCE_REFERENCES = {
     "source.name", "path.parts", "re.search", "relative.parts", "largeRequest.group",
     "pair.group", "twoButtonTree.group", "tree.group", "actions.map", "l.name", "m.id",
     "p.macros.map", "sectors.map", "events.map", "user.email", "user.name",
-    "next.map", "children.map", "controls.chat", "temporary.name", "0.radio", "self.radio",
+    "next.map", "controls.chat", "temporary.name", "0.radio", "self.radio",
     "file.name", "action.properties", "cap.events.click", "cap.properties", "reads.read",
     "ids.caps.children.map", "item.events", "item.properties", "item.style", "layer.events.click",
     "release.run", "download.name", "self.fail",
@@ -57,6 +57,7 @@ SOURCE_REFERENCES = {
 }
 SOURCE_EXTENSIONS = {".py", ".js", ".swift", ".yml", ".yaml"}
 PYTHON_MEMBERS = {"release.run", "download.name", "self.fail"}
+SWIFT_MEMBERS = {"children.map"}
 PATH_REFERENCES = {"releases.md", "release.py", "source.zip", "submission.zip"}
 EMAIL = re.compile(rb"[a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
 
@@ -85,8 +86,8 @@ def python_reference_spans(name, data):
         candidates = [node] if isinstance(node, ast.Attribute) else []
         # The checker's explicit policy table is data, not a connection endpoint.
         if name == "scripts/publication_check.py" and isinstance(node, ast.Assign) and isinstance(node.value, ast.Set):
-            if any(isinstance(assignment_target, Name) and assignment_target.id in {"SOURCE_REFERENCES", "PYTHON_MEMBERS", "FILE_REFERENCES", "PATH_REFERENCES"} for assignment_target in node.targets):
-                candidates = [value for value in node.value.elts if isinstance(value, ast.Constant) and value.value in PYTHON_MEMBERS | PATH_REFERENCES]
+            if any(isinstance(assignment_target, Name) and assignment_target.id in {"SOURCE_REFERENCES", "PYTHON_MEMBERS", "SWIFT_MEMBERS", "FILE_REFERENCES", "PATH_REFERENCES"} for assignment_target in node.targets):
+                candidates = [value for value in node.value.elts if isinstance(value, ast.Constant) and value.value in PYTHON_MEMBERS | SWIFT_MEMBERS | PATH_REFERENCES]
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div) and isinstance(node.right, ast.Constant):
             if node.right.value in PATH_REFERENCES:
                 candidates = [node.right]
@@ -109,10 +110,72 @@ def python_reference_spans(name, data):
             start = offsets[candidate.lineno - 1] + candidate.col_offset
             end = offsets[candidate.end_lineno - 1] + candidate.end_col_offset
             if isinstance(candidate, ast.Constant):
-                (member_spans if candidate.value in PYTHON_MEMBERS else path_spans).append((start, end))
+                (member_spans if candidate.value in PYTHON_MEMBERS | SWIFT_MEMBERS else path_spans).append((start, end))
             elif data[start:end].decode() in PYTHON_MEMBERS:
                 member_spans.append((start, end))
     return member_spans, path_spans, url_pattern_spans
+
+
+def swift_member_spans(name, data):
+    """Locate narrow member exceptions outside Swift strings and comments.
+
+    Interpolated expressions remain inside the string for this check. Unknown
+    slash syntax stops exemptions rather than guessing whether it is a regex.
+    """
+    if pathlib.Path(name).suffix != ".swift":
+        return []
+    spans, index = [], 0
+    scopes = [("code", None)]
+    string_start = re.compile(rb'(#+)?("""|")')
+    while index < len(data):
+        kind, state = scopes[-1]
+        if kind == "string":
+            closing, escape = state
+            if data.startswith(escape + b"(", index):
+                scopes.append(("interpolation", 1))
+                index += len(escape) + 1
+            elif data.startswith(escape, index):
+                index += len(escape) + 1
+            elif data.startswith(closing, index):
+                scopes.pop()
+                index += len(closing)
+            else:
+                index += 1
+            continue
+        if data.startswith(b"//", index):
+            end = data.find(b"\n", index)
+            index = len(data) if end < 0 else end + 1
+        elif data.startswith(b"/*", index):
+            depth, index = 1, index + 2
+            while index < len(data) and depth:
+                if data.startswith(b"/*", index):
+                    depth, index = depth + 1, index + 2
+                elif data.startswith(b"*/", index):
+                    depth, index = depth - 1, index + 2
+                else:
+                    index += 1
+        elif match := string_start.match(data, index):
+            hashes = match[1] or b""
+            scopes.append(("string", (match[2] + hashes, b"\\" + hashes)))
+            index = match.end()
+        elif data[index:index + 1] == b"/":
+            break
+        elif kind == "interpolation" and data[index:index + 1] in (b"(", b")"):
+            depth = state + (1 if data[index:index + 1] == b"(" else -1)
+            if depth:
+                scopes[-1] = (kind, depth)
+            else:
+                scopes.pop()
+            index += 1
+        else:
+            match = DOMAIN.match(data, index)
+            if match:
+                if len(scopes) == 1 and match[0].decode() in SWIFT_MEMBERS:
+                    spans.append(match.span())
+                index = match.end()
+            else:
+                index += 1
+    return spans
 
 
 def url_scan_view(data, *, numeric_first=False):
@@ -157,6 +220,7 @@ def content_findings(name, data, *, path_context=False, require_utf8=False):
             issues.append("Git metadata must be valid UTF-8 for publication review")
         return issues  # Binary metadata is reviewed separately, not treated as prose.
     member_spans, path_spans, url_pattern_spans = python_reference_spans(name, data)
+    member_spans += swift_member_spans(name, data)
     scan_data = data
     for start, end in url_pattern_spans:
         # Reorder this equivalent regex character class before escape decoding.
@@ -205,7 +269,7 @@ def content_findings(name, data, *, path_context=False, require_utf8=False):
                     continue
                 if any(start <= match.start() and match.end() <= end for start, end in paths):
                     continue
-            if token in PYTHON_MEMBERS:
+            if token in PYTHON_MEMBERS | SWIFT_MEMBERS:
                 if any(start <= match.start() and match.end() <= end for start, end in members):
                     continue
             elif pathlib.Path(name).suffix in SOURCE_EXTENSIONS and token in SOURCE_REFERENCES:

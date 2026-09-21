@@ -291,13 +291,26 @@ final class ControllerActions {
             reads.role($0) == "AXHeading"
                 && reads.labels($0).contains { $0 == "ChatGPT said:" || $0.hasPrefix("ChatGPT said: ") }
         }
-        guard let newest = headings.last, reads.complete else { return nil }
-        var candidates: [[AXUIElement]] = []
+        var groups: [[AXUIElement]] = []
+        var nested: [AXUIElement] = []
         for node in nodes where reads.role(node) == kAXGroupRole
             && ControllerTargetPolicy.isOpenAIResponseGroup(reads.read(node, "AXDOMClassList", absent: [String]())) {
             guard let children = reads.children(node) else { return nil }
-            if children.contains(where: { CFEqual($0, newest) }) { candidates.append(children) }
+            guard children.contains(where: { child in headings.contains { CFEqual($0, child) } }) else { continue }
+            groups.append(children)
+            for child in children where !headings.contains(where: { CFEqual($0, child) }) {
+                guard let contents = reads.descendants(child) else { return nil }
+                nested.append(contentsOf: contents.filter { item in headings.contains { CFEqual($0, item) } })
+            }
         }
+        // Markdown headings inside a response body are not message boundaries.
+        // A direct heading of another recognized response still qualifies.
+        let newest = headings.last { heading in
+            groups.contains { $0.contains { CFEqual($0, heading) } }
+                || !nested.contains { CFEqual($0, heading) }
+        }
+        guard let newest, reads.complete else { return nil }
+        let candidates = groups.filter { $0.contains { CFEqual($0, newest) } }
         // A newer heading in an unsupported group invalidates every older matching group.
         return reads.complete && candidates.count == 1 ? candidates[0] : nil
     }
@@ -333,7 +346,7 @@ final class ControllerActions {
         let copies = buttons.filter { reads.actionable($0) && reads.matches($0, ["Copy"]) }
         // User-message toolbars also have Copy and Fork, but not the assistant Read aloud action.
         let numbered = reads.labels(message).contains(where: ControllerTargetPolicy.isClaudeMessageName)
-        let readers = buttons.filter { reads.actionable($0) && reads.matches($0, ["Read aloud"]) }
+        let readers = buttons.filter { reads.actionable($0) && reads.matches($0, ["Read aloud", "Stop reading"]) }
         return reads.complete && copies.count == 1 && (numbered || readers.count == 1) ? copies[0] : nil
     }
     func claudeActionReveal(_ message: AXUIElement, using reads: ControllerAccessibility) -> AXUIElement? {

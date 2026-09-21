@@ -31,6 +31,9 @@ than two slashes. A second URL view removes ASCII tabs and newlines;
 the first decoded view remains checked. Domain and email checks inspect both
 original and escape-decoded text. Source-reference exceptions retain their original
 locations after decoding, so a real path cannot exempt a separate endpoint.
+The narrow Swift member exception applies only outside strings and comments,
+including raw strings, multiline strings and interpolated expressions. Unknown
+slash syntax stops further exemptions rather than guessing how to parse it.
 Credential checks inspect the original bytes. This is not a source-language parser: it does not
 execute code, join expressions, expand templates or decode arbitrary encodings.
 A passing scan is not proof that all private data has been detected. Review the
