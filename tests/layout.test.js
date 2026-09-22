@@ -81,9 +81,9 @@ test('the clear action key shows symbols with an accessible shortcut name',()=>{
 
 test('the actual device photo is a separate reference, not a tappable board',()=>{
  const image=fs.readFileSync(path.join(root,'docs/assets/creator-micro-device.png'));
- assert.equal(image.readUInt32BE(16),1127);
- assert.equal(image.readUInt32BE(20),1280);
- assert.match(html,/src="assets\/creator-micro-device.png" width="1127" height="1280"/);
+ assert.equal(image.readUInt32BE(16),895);
+ assert.equal(image.readUInt32BE(20),880);
+ assert.match(html,/src="assets\/creator-micro-device.png" width="895" height="880"/);
  assert.match(html,/<figure class="reference-photo"><img/);
  assert.doesNotMatch(html,/device-photo|const positions=/);
  assert.match(fs.readFileSync(path.join(root,'README.md'),'utf8'),/\]\(docs\/assets\/creator-micro-device.png\)/);
