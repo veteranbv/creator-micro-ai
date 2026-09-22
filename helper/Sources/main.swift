@@ -274,6 +274,7 @@ Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { _ in
 private let application = NSApplication.shared
 application.setActivationPolicy(.accessory)
 private let controllerActions = ControllerActions()
+controllerActions.onClaudeCopyFailure = { health.claudeCopyFailure = $0 }
 controllerActions.start()
 private let lifecycle = HelperLifecycle(bridge: bridge, health: { health })
 application.delegate = lifecycle

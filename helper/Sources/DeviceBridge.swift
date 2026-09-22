@@ -213,6 +213,7 @@ final class HelperLifecycle: NSObject, NSApplicationDelegate {
     private let accessibilityInfo = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let inputMonitoringInfo = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let switchingInfo = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let copyInfo = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let recoveryInfo = NSMenuItem(title: "Check device connection, Input installation and Input Monitoring.", action: nil, keyEquivalent: "")
     private let permissionInfo = NSMenuItem(title: "After updating, re-add this app in both permission lists, then quit and reopen.", action: nil, keyEquivalent: "")
     init(bridge: DeviceBridge, health: @escaping () -> HelperHealth) {
@@ -230,7 +231,7 @@ final class HelperLifecycle: NSObject, NSApplicationDelegate {
         setupItem.target = self
         menu.addItem(setupItem)
         menu.addItem(.separator())
-        for row in [connectionInfo, accessibilityInfo, inputMonitoringInfo, switchingInfo, recoveryInfo, permissionInfo] {
+        for row in [connectionInfo, accessibilityInfo, inputMonitoringInfo, switchingInfo, copyInfo, recoveryInfo, permissionInfo] {
             row.isEnabled = false
             menu.addItem(row)
         }
@@ -249,6 +250,8 @@ final class HelperLifecycle: NSObject, NSApplicationDelegate {
         accessibilityInfo.title = current.accessibilityTitle
         inputMonitoringInfo.title = current.inputMonitoringTitle
         switchingInfo.title = current.switchingTitle
+        copyInfo.title = current.claudeCopyFailure?.title ?? ""
+        copyInfo.isHidden = current.claudeCopyFailure == nil
         recoveryInfo.isHidden = current.connection != .unavailable
         permissionInfo.isHidden = current.accessibilityTrusted && current.inputMonitoringTrusted
         let description = "Creator Micro AI. \(current.connectionTitle). \(current.accessibilityTitle). \(current.inputMonitoringTitle). \(current.switchingTitle)."

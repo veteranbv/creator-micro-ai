@@ -95,6 +95,31 @@ enum ControllerTargetTests {
         }
         check(claudeCopy(claudeReader()).map { CFEqual($0, fixtureNodes[6]) } == true,
               "unnumbered assistant toolbar selects its full-response Copy")
+        check(actions.claudeSelectionFailure == nil, "recognized toolbar clears selection failure")
+        _ = claudeCopy(claudeReader(names: [1: "Unknown pane"]))
+        check(actions.claudeSelectionFailure == .message, "unrecognized transcript reports message selection failure")
+        _ = actions.claudeCopyControl(fixtureNodes[4], using: claudeReader(names: [5: "Unknown toolbar"]))
+        check(actions.claudeSelectionFailure == .toolbar, "missing toolbar reports its own stage")
+        _ = claudeCopy(claudeReader(names: [6: "Copy code"]))
+        check(actions.claudeSelectionFailure == .copyControl, "missing response Copy reports its own stage")
+        _ = claudeCopy(claudeReader(names: [7: "Fork from here"]))
+        check(actions.claudeSelectionFailure == .assistantEvidence, "missing assistant evidence reports its own stage")
+        let failedRead = claudeReader(failureNode: 4)
+        _ = claudeCopy(failedRead)
+        check(failedRead.failure == .attributeRead, "attribute failure is not mislabeled as tree size")
+        let limitedRead = claudeReader()
+        _ = limitedRead.descendants(fixtureNodes[0], limit: 2)
+        check(limitedRead.failure == .treeLimit && !limitedRead.complete, "tree limit remains fail closed with a distinct reason")
+        _ = limitedRead.role(fixtureNodes[0])
+        check(limitedRead.failure == .treeLimit, "later successful reads do not erase a failure reason")
+        var copyHealth = HelperHealth()
+        actions.onClaudeCopyFailure = { copyHealth.claudeCopyFailure = $0 }
+        for failure in HelperHealth.ClaudeCopyFailure.allCases {
+            actions.finishClaudeCopy(failure)
+            check(copyHealth.claudeCopyFailure == failure, "failure callback carries only a fixed category")
+        }
+        actions.finishClaudeCopy(nil)
+        check(copyHealth.claudeCopyFailure == nil, "successful or new Claude Copy clears the failure without history")
         check(claudeCopy(claudeReader(names: [7: "Stop reading"]))
             .map { CFEqual($0, fixtureNodes[6]) } == true, "active read-aloud retains unnumbered response Copy")
         let numberedTree = [0: [1], 1: [2], 2: [3, 4], 4: [8, 5], 5: [6, 7]]
@@ -176,6 +201,7 @@ enum ControllerTargetTests {
         _ = sticky.labels(fixtureNodes[6])
         _ = sticky.labels(fixtureNodes[5])
         check(!sticky.complete, "successful later label reads cannot erase an earlier failure")
+        check(sticky.failure == .attributeRead, "label read failure retains a fixed reason without its value")
         for status: AXError in [.attributeUnsupported, .noValue] {
             for key in [kAXRoleAttribute, kAXEnabledAttribute] {
                 let absent = reader(failureNode: 6, failureKey: key, failure: status)
