@@ -51,9 +51,9 @@ Superwhisper is my choice for this setup and the tool used in dictation testing.
 
 ## Status
 
-This is a pre-release kit. Automated tests cover the profile, action-selection rules, shortcut construction and privacy checks. The signed 0.2.1 build has user-reported USB and Bluetooth four-layer switching and signed-update permission-retention passes. All-control results belong to an earlier source build, not a complete retest of 0.2.1. See the [verification checklist](docs/verification.md) for exact builds and pending failure/recovery and compatibility checks.
+This is a pre-release kit. Version 0.2.3 build 8 is Developer ID-signed and notarized, with user-reported Copy-response passes in all four layers over USB and Bluetooth. Its controlled update retained both permissions. Earlier builds have separate switching and all-control results; they are not a complete retest of every control on build 8. Automated tests cover the profile, action-selection rules, shortcut construction and privacy checks. See the [verification checklist](docs/verification.md) for exact builds, evidence and remaining checks.
 
-A native device-bridge crash during extended use is under investigation. Recovery after manually choosing Reopen is not an automatic-recovery pass. The next candidate adds process-isolated reconnection and bounded restart delays; hardware recovery and sustained-use testing remain pending.
+A native device-bridge crash during extended use remains under investigation. The current helper includes process-isolated reconnection and bounded restart delays, with automated failure-path coverage. Recovery after manually choosing Reopen is not an automatic-recovery pass. Hardware recovery, sustained-use acceptance and second-Mac compatibility remain unverified.
 
 Bluetooth power-cycle/reconnect testing also has a user-reported pass on the earlier checkpoint recorded there. Follow the [Bluetooth setup steps](docs/setup.md#bluetooth-operation); profile writes remain USB-only until separately tested.
 
