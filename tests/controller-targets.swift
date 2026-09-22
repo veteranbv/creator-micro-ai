@@ -66,7 +66,7 @@ enum ControllerTargetTests {
         // Synthetic unnumbered Code response: transcript > body > final response > actions.
         func claudeReader(tree: [Int: [Int]] = [0: [1], 1: [2], 2: [3, 4], 4: [5], 5: [6, 7]],
                           names: [Int: String] = [:], roles: [Int: String] = [:],
-                          disabled: Set<Int> = [], failureNode: Int? = nil,
+                          disabled: Set<Int> = [], emptyGroups: Set<Int> = [], busy: Set<Int> = [], failureNode: Int? = nil,
                           failureKey: String = kAXChildrenAttribute,
                           failure: AXError = .cannotComplete) -> ControllerAccessibility {
             ControllerAccessibility { element, key in
@@ -84,6 +84,8 @@ enum ControllerTargetTests {
                     return (.success, (roles[index] ?? defaults[index] ?? kAXGroupRole) as CFString)
                 }
                 if key == kAXEnabledAttribute { return (.success, disabled.contains(index) ? kCFBooleanFalse : kCFBooleanTrue) }
+                if key == kAXSubroleAttribute { return (.success, (emptyGroups.contains(index) ? "AXEmptyGroup" : "") as CFString) }
+                if key == "AXElementBusy" { return (.success, busy.contains(index) ? kCFBooleanTrue : kCFBooleanFalse) }
                 return (.attributeUnsupported, nil)
             }
         }
@@ -96,6 +98,43 @@ enum ControllerTargetTests {
         check(claudeCopy(claudeReader()).map { CFEqual($0, fixtureNodes[6]) } == true,
               "unnumbered assistant toolbar selects its full-response Copy")
         check(actions.claudeSelectionFailure == nil, "recognized toolbar clears selection failure")
+        let trailingLayoutTree = [0: [1], 1: [2], 2: [3, 4, 10], 4: [5], 5: [6, 7]]
+        check(claudeCopy(claudeReader(tree: trailingLayoutTree, emptyGroups: [10]))
+            .map { CFEqual($0, fixtureNodes[6]) } == true, "native empty layout leaf after Code response does not hide Copy")
+        check(claudeCopy(claudeReader(tree: trailingLayoutTree)) == nil,
+              "ordinary empty newest group is not skipped")
+        check(claudeCopy(claudeReader(tree: trailingLayoutTree, emptyGroups: [10], busy: [10])) == nil,
+              "busy empty group blocks older Copy")
+        for name in ["Message 25", "Loading", "Unknown new layout"] {
+            check(claudeCopy(claudeReader(tree: trailingLayoutTree, names: [10: name], emptyGroups: [10])) == nil,
+                  "named empty group is not treated as decoration")
+        }
+        check(claudeCopy(claudeReader(tree: trailingLayoutTree, roles: [10: kAXButtonRole], emptyGroups: [10])) == nil,
+              "non-group empty subrole cannot bypass newest content")
+        check(claudeCopy(claudeReader(tree: [0: [1], 1: [2], 2: [4, 10], 4: [5], 5: [6, 7], 10: [11]],
+            emptyGroups: [10, 11])) == nil, "empty-marked wrapper with children is not skipped")
+        check(claudeCopy(claudeReader(tree: [0: [1], 1: [2], 2: [4, 10, 11], 4: [5], 5: [6, 7]],
+            emptyGroups: [10, 11])) != nil, "multiple trailing native layout leaves are skipped")
+        check(claudeCopy(claudeReader(tree: [0: [1], 1: [2], 2: [10, 11]], emptyGroups: [10, 11])) == nil,
+              "all-layout transcript has no Copy target")
+        check(claudeCopy(claudeReader(tree: [0: [1], 1: [2], 2: [4, 11, 10], 4: [5], 5: [6, 7]],
+            names: [11: "Unknown newest response"], emptyGroups: [10])) == nil,
+              "layout suffix never bypasses an unsupported newest response")
+        for key in [kAXSubroleAttribute, kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute,
+                    kAXChildrenAttribute, "AXElementBusy"] {
+            for error in [AXError.cannotComplete, .invalidUIElement, .success] {
+                check(claudeCopy(claudeReader(tree: trailingLayoutTree, emptyGroups: [10],
+                    failureNode: 10, failureKey: key, failure: error)) == nil,
+                      "unreadable trailing layout evidence fails closed")
+            }
+        }
+        for key in [kAXSubroleAttribute, "AXElementBusy"] {
+            for error in [AXError.attributeUnsupported, .noValue] {
+                check(claudeCopy(claudeReader(tree: trailingLayoutTree, emptyGroups: [10],
+                    failureNode: 10, failureKey: key, failure: error)) == nil,
+                      "missing layout marker or busy state cannot skip newest group")
+            }
+        }
         _ = claudeCopy(claudeReader(names: [1: "Unknown pane"]))
         check(actions.claudeSelectionFailure == .message, "unrecognized transcript reports message selection failure")
         _ = actions.claudeCopyControl(fixtureNodes[4], using: claudeReader(names: [5: "Unknown toolbar"]))
@@ -127,6 +166,11 @@ enum ControllerTargetTests {
             check(claudeCopy(claudeReader(tree: numberedTree,
                 names: [4: messageName, 8: "Claude responded: Example"], roles: [8: "AXHeading"]))
                 .map { CFEqual($0, fixtureNodes[6]) } == true, "numbered Code and Chat responses remain supported")
+            var numberedWithTail = numberedTree
+            numberedWithTail[2] = [3, 4, 10]
+            check(claudeCopy(claudeReader(tree: numberedWithTail,
+                names: [4: messageName, 8: "Claude responded: Example"], roles: [8: "AXHeading"], emptyGroups: [10]))
+                .map { CFEqual($0, fixtureNodes[6]) } == true, "numbered response before native layout leaf retains Copy")
             check(claudeCopy(claudeReader(tree: numberedTree,
                 names: [4: messageName, 8: "Claude responded: Example", 7: "Stop reading"], roles: [8: "AXHeading"])) != nil,
                 "known assistant heading does not depend on Read aloud playback state")
@@ -143,6 +187,11 @@ enum ControllerTargetTests {
             .map { CFEqual($0, fixtureNodes[9]) } == true, "unique reveal is scoped to the newest body")
         check(actions.claudeCopyControl(revealMessage!, using: revealReads) == nil,
               "hidden toolbar is not mistaken for Copy")
+        let revealWithTail = claudeReader(tree: [0: [1], 1: [2], 2: [3, 4, 10], 4: [9]],
+            names: [9: "Show message actions"], roles: [9: kAXButtonRole], emptyGroups: [10])
+        check(actions.latestClaudeMessage(fixtureNodes[0], using: revealWithTail)
+            .map { CFEqual($0, fixtureNodes[4]) } == true,
+              "hidden toolbar before layout leaf retains the same response for reveal retries")
         check(claudeCopy(claudeReader(tree: [0: [10], 10: [1], 1: [2], 2: [3, 4], 4: [5], 5: [6, 7]],
             names: [10: "Chat messages"])) != nil, "nested live-region transcript wrappers are accepted")
         check(claudeCopy(claudeReader(tree: [0: [10, 1], 1: [2], 2: [3, 4], 4: [5], 5: [6, 7]],

@@ -279,7 +279,19 @@ final class ControllerActions {
                 }
                 return reads.complete && response ? current : nil
             }
-            guard names.allSatisfy({ $0.isEmpty || $0 == "Chat messages" }), let last = children.last else { return nil }
+            guard names.allSatisfy({ $0.isEmpty || $0 == "Chat messages" }) else { return nil }
+            // Chromium exposes layout-only leaves as AXEmptyGroup. Claude Code
+            // appends one after its messages; it is not a newer response.
+            var meaningful = children[...]
+            while let tail = meaningful.last,
+                  reads.role(tail) == kAXGroupRole,
+                  reads.read(tail, kAXSubroleAttribute, absent: "") == "AXEmptyGroup",
+                  reads.labels(tail).allSatisfy(\.isEmpty),
+                  reads.children(tail)?.isEmpty == true,
+                  !reads.read(tail, "AXElementBusy", absent: true, required: true) {
+                meaningful = meaningful.dropLast()
+            }
+            guard reads.complete, let last = meaningful.last else { return nil }
             let toolbar = reads.role(last) == kAXToolbarRole && reads.matches(last, ["Message actions"])
             let reveal = reads.actionable(last) && reads.labels(last).contains(where: ControllerTargetPolicy.isClaudeActionReveal)
             if toolbar || reveal {
