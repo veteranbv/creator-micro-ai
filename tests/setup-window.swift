@@ -106,7 +106,9 @@ enum SetupWindowPreview {
         catch { print("FAIL: fixture output directory could not be created"); exit(1) }
         for step in 0...6 {
             defaults.set(["step": step, "build": build], forKey: "setupProgress")
-            let controller = SetupWindow(health: { HelperHealth() },
+            var fixtureHealth = HelperHealth()
+            fixtureHealth.claudeCopyFailure = .assistantEvidence
+            let controller = SetupWindow(health: { fixtureHealth },
                                          pauseBridge: { $0(false) }, resumeBridge: {}, defaults: defaults)
             guard let view = controller.window?.contentView else {
                 print("FAIL: setup content view is missing"); exit(1)
@@ -115,6 +117,11 @@ enum SetupWindowPreview {
             view.wantsLayer = true
             view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
             view.layoutSubtreeIfNeeded()
+            func containsFailure(_ node: NSView) -> Bool {
+                if let label = node as? NSTextField, label.stringValue.contains("Claude Copy: C6:") { return true }
+                return node.subviews.contains(where: containsFailure)
+            }
+            require(containsFailure(view), "Copy failure must be visible on every setup step")
             func checkLayout(_ node: NSView) {
                 require(!node.hasAmbiguousLayout, "Ambiguous setup layout: \(type(of: node))")
                 if let scroll = node as? NSScrollView {

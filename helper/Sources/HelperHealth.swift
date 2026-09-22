@@ -5,12 +5,27 @@ struct HelperHealth {
     enum Connection { case waiting, connected, unavailable }
     enum Switching { case idle, pending, sent, failed }
     enum BridgeFailure { case crashed, exited, launchFailed }
+    // Closed vocabulary only: no target-app labels, errors, timestamps or history.
+    enum ClaudeCopyFailure: String, CaseIterable {
+        case attributeRead = "C1: accessibility read failed"
+        case treeLimit = "C2: accessibility tree exceeded the safety limit"
+        case message = "C3: latest response structure not recognized"
+        case toolbar = "C4: response toolbar missing or ambiguous"
+        case copyControl = "C5: Copy control missing, disabled or ambiguous"
+        case assistantEvidence = "C6: assistant toolbar evidence missing or ambiguous"
+        case reveal = "C7: message actions could not be revealed"
+        case changedContext = "C8: focused window or latest response changed"
+        case press = "C9: Copy press was not accepted"
+
+        var title: String { "Claude Copy: \(rawValue). Retry in Claude, then check this status." }
+    }
 
     private(set) var connection: Connection = .waiting
     private(set) var switching: Switching = .idle
     private(set) var bridgeFailure: BridgeFailure?
     var accessibilityTrusted = false
     var inputMonitoringTrusted = false
+    var claudeCopyFailure: ClaudeCopyFailure?
     private let startedAt: TimeInterval
     // Allow the bridge's five-second RPC deadline plus the parent's three-second retry.
     private static let startupGracePeriod: TimeInterval = 8
@@ -48,7 +63,7 @@ struct HelperHealth {
     mutating func finishSwitch(success: Bool) { switching = success ? .sent : .failed }
 
     var needsAttention: Bool {
-        !accessibilityTrusted || !inputMonitoringTrusted || connection == .unavailable || switching == .failed
+        !accessibilityTrusted || !inputMonitoringTrusted || connection == .unavailable || switching == .failed || claudeCopyFailure != nil
     }
 
     var connectionTitle: String {

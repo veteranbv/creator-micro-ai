@@ -12,6 +12,14 @@ enum HelperHealthTests {
         health.inputMonitoringTrusted = true
         precondition(health.inputMonitoringTitle == "Input Monitoring: trusted")
         precondition(!health.needsAttention)
+        for failure in HelperHealth.ClaudeCopyFailure.allCases {
+            health.claudeCopyFailure = failure
+            precondition(health.needsAttention)
+            precondition(failure.title.hasPrefix("Claude Copy: C"))
+        }
+        health.claudeCopyFailure = nil
+        precondition(!health.needsAttention, "Clearing Copy failure restores otherwise healthy status")
+        precondition(HelperHealth().claudeCopyFailure == nil, "Failure state is not restored across launches")
         health.checkStartup(now: 107.9)
         precondition(health.connection == .waiting)
         health.checkStartup(now: 108)

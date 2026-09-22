@@ -120,7 +120,8 @@ enum ControllerTargetPolicy {
 
 // One selection attempt owns this state. A later successful read cannot erase a failure.
 final class ControllerAccessibility {
-    private(set) var complete = true
+    private(set) var failure: HelperHealth.ClaudeCopyFailure?
+    var complete: Bool { failure == nil }
     private let copyAttribute: (AXUIElement, String) -> (AXError, CFTypeRef?)
 
     init(copyAttribute: @escaping (AXUIElement, String) -> (AXError, CFTypeRef?) = { element, key in
@@ -134,7 +135,7 @@ final class ControllerAccessibility {
     func read<Value>(_ element: AXUIElement, _ key: String, absent: Value, required: Bool = false) -> Value {
         let (status, raw) = copyAttribute(element, key)
         guard let result = ControllerTargetPolicy.attributeValue(status: status, value: raw as? Value, absent: absent, required: required) else {
-            complete = false
+            if failure == nil { failure = .attributeRead }
             return absent
         }
         return result
@@ -150,7 +151,7 @@ final class ControllerAccessibility {
     }
     func role(_ element: AXUIElement) -> String {
         let role = read(element, kAXRoleAttribute, absent: "", required: true)
-        if role.isEmpty { complete = false }
+        if role.isEmpty && failure == nil { failure = .attributeRead }
         return role
     }
     func actionable(_ element: AXUIElement) -> Bool {
@@ -160,14 +161,14 @@ final class ControllerAccessibility {
     func children(_ element: AXUIElement) -> [AXUIElement]? {
         let (status, raw) = copyAttribute(element, kAXChildrenAttribute)
         guard let result = ControllerTargetPolicy.childValues(status: status, values: raw as? [AXUIElement]) else {
-            complete = false
+            if failure == nil { failure = .attributeRead }
             return nil
         }
         return result
     }
     func descendants(_ root: AXUIElement, limit: Int = 5000) -> [AXUIElement]? {
         guard let result = ControllerTargetPolicy.completeDescendants(root, limit: limit, children: children) else {
-            complete = false
+            if failure == nil { failure = .treeLimit }
             return nil
         }
         return result
@@ -184,6 +185,8 @@ final class ControllerActions {
     private var handler: EventHandlerRef?
     private let signature: UInt32 = 0x574C4149
     private var copyPending = false
+    private(set) var claudeSelectionFailure: HelperHealth.ClaudeCopyFailure?
+    var onClaudeCopyFailure: ((HelperHealth.ClaudeCopyFailure?) -> Void)?
 
 
     func start() {
@@ -256,6 +259,7 @@ final class ControllerActions {
         return unsafeBitCast(raw, to: AXUIElement.self)
     }
     func latestClaudeMessage(_ window: AXUIElement, using reads: ControllerAccessibility) -> AXUIElement? {
+        claudeSelectionFailure = .message
         guard let nodes = reads.descendants(window) else { return nil }
         let panes = nodes.filter { reads.role($0) == kAXGroupRole && reads.matches($0, ["Chat messages"]) }
         guard let pane = panes.last, reads.complete else { return nil }
@@ -338,6 +342,7 @@ final class ControllerActions {
         return target
     }
     func claudeCopyControl(_ message: AXUIElement, using reads: ControllerAccessibility) -> AXUIElement? {
+        claudeSelectionFailure = .toolbar
         guard let contents = reads.descendants(message, limit: 1000) else { return nil }
         let toolbars = contents.filter {
             reads.role($0) == kAXToolbarRole && reads.matches($0, ["Message actions"])
@@ -347,7 +352,11 @@ final class ControllerActions {
         // User-message toolbars also have Copy and Fork, but not the assistant Read aloud action.
         let numbered = reads.labels(message).contains(where: ControllerTargetPolicy.isClaudeMessageName)
         let readers = buttons.filter { reads.actionable($0) && reads.matches($0, ["Read aloud", "Stop reading"]) }
-        return reads.complete && copies.count == 1 && (numbered || readers.count == 1) ? copies[0] : nil
+        guard reads.complete else { return nil }
+        guard copies.count == 1 else { claudeSelectionFailure = .copyControl; return nil }
+        guard numbered || readers.count == 1 else { claudeSelectionFailure = .assistantEvidence; return nil }
+        claudeSelectionFailure = nil
+        return copies[0]
     }
     func claudeActionReveal(_ message: AXUIElement, using reads: ControllerAccessibility) -> AXUIElement? {
         guard let contents = reads.descendants(message, limit: 1000) else { return nil }
@@ -356,29 +365,45 @@ final class ControllerActions {
         }
         return reads.complete && controls.count == 1 ? controls[0] : nil
     }
-    private func finishCopy(_ success: Bool) {
+    func finishClaudeCopy(_ failure: HelperHealth.ClaudeCopyFailure?) {
         copyPending = false
-        if !success { NSSound.beep() }
+        onClaudeCopyFailure?(failure)
+    }
+    private func failClaudeCopy(_ failure: HelperHealth.ClaudeCopyFailure) {
+        finishClaudeCopy(failure)
+        NSSound.beep()
     }
     private func waitForClaudeCopy(app: NSRunningApplication, window: AXUIElement, message: AXUIElement, attempts: Int) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
             guard let self else { return }
             let reads = ControllerAccessibility()
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
-                  let currentWindow = self.focusedWindow(app), CFEqual(currentWindow, window),
-                  let currentMessage = self.latestClaudeMessage(currentWindow, using: reads), CFEqual(currentMessage, message) else {
-                self.finishCopy(false)
+                  let currentWindow = self.focusedWindow(app), CFEqual(currentWindow, window) else {
+                self.failClaudeCopy(.changedContext)
+                return
+            }
+            guard let currentMessage = self.latestClaudeMessage(currentWindow, using: reads) else {
+                self.failClaudeCopy(reads.failure ?? .message)
+                return
+            }
+            guard CFEqual(currentMessage, message) else {
+                self.failClaudeCopy(.changedContext)
                 return
             }
             if let target = self.claudeCopyControl(currentMessage, using: reads) {
-                self.finishCopy(self.press(target, app: app, window: window))
+                if self.press(target, app: app, window: window) { self.finishClaudeCopy(nil) }
+                else { self.failClaudeCopy(.press) }
             } else if reads.complete && attempts > 1 {
                 self.waitForClaudeCopy(app: app, window: window, message: message, attempts: attempts - 1)
-            } else { self.finishCopy(false) }
+            } else { self.failClaudeCopy(reads.failure ?? self.claudeSelectionFailure ?? .toolbar) }
         }
     }
     private func perform(_ id: UInt32, app: NSRunningApplication, window: AXUIElement) {
         let claude = app.bundleIdentifier == "com.anthropic.claudefordesktop"
+        if id == 2 && claude {
+            guard !copyPending else { return }
+            finishClaudeCopy(nil)
+        }
         if id == 1 && !claude {
             // This app-scoped shortcut does not depend on conversation contents.
             guard let currentWindow = focusedWindow(app), CFEqual(currentWindow, window),
@@ -394,18 +419,20 @@ final class ControllerActions {
         let reads = ControllerAccessibility()
         // Every uniqueness-based selector requires a complete tree.
         guard let all = reads.descendants(window) else {
+            if id == 2 && claude { finishClaudeCopy(reads.failure ?? .attributeRead) }
             NSSound.beep()
             return
         }
-        guard all.count < 5000 else { NSSound.beep(); return }
+        guard all.count < 5000 else {
+            if id == 2 && claude { finishClaudeCopy(.treeLimit) }
+            NSSound.beep(); return
+        }
         var target: AXUIElement?
         switch id {
         case 1:
             target = reads.uniqueControl(in: all, matching: { $0.hasPrefix("Model: ") })
         case 2:
             guard !copyPending else { return }
-            // A truncated window tree cannot establish which response is last.
-            guard all.count < 5000 else { finishCopy(false); return }
             if !claude {
                 if let latestChildren = latestOpenAIResponse(in: all, using: reads) {
                     target = openAIResponseCopy(in: latestChildren, using: reads)
@@ -414,10 +441,13 @@ final class ControllerActions {
                 if let message = latestClaudeMessage(window, using: reads) {
                     target = claudeCopyControl(message, using: reads)
                     if target == nil {
-                        if let reveal = claudeActionReveal(message, using: reads), press(reveal, app: app, window: window) {
-                            copyPending = true
-                            waitForClaudeCopy(app: app, window: window, message: message, attempts: 6)
-                            return
+                        if let reveal = claudeActionReveal(message, using: reads) {
+                            if press(reveal, app: app, window: window) {
+                                copyPending = true
+                                waitForClaudeCopy(app: app, window: window, message: message, attempts: 6)
+                                return
+                            }
+                            claudeSelectionFailure = .reveal
                         }
                     }
                 }
@@ -427,7 +457,13 @@ final class ControllerActions {
             target = reads.uniqueControl(in: all, matching: { $0 == "Search" })
         default: return
         }
-        if reads.complete, let target, press(target, app: app, window: window) { return }
+        if reads.complete, let target, press(target, app: app, window: window) {
+            if id == 2 && claude { finishClaudeCopy(nil) }
+            return
+        }
+        if id == 2 && claude {
+            finishClaudeCopy(reads.failure ?? (target == nil ? claudeSelectionFailure ?? .message : .press))
+        }
         NSSound.beep()
     }
 

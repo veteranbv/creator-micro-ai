@@ -19,6 +19,12 @@ Input Monitoring grants broad access to keyboard input, not a device-only permis
 
 No typed-text recording, clipboard reads, audio capture, screenshots, conversation exports, URL history, telemetry or action-history logs. There is no runtime log switch. The helper does not listen on TCP or open an HTTP endpoint. Its child process receives only a small environment allowlist and communicates through inherited pipes. Vendor exceptions are replaced with fixed protocol failures, never forwarded verbatim.
 
+The current Claude Copy failure can appear in Setup & Status and the helper menu.
+It is one fixed category held in memory, not a log. It contains no app labels,
+conversation identifiers, timestamps or raw errors. The next Claude Copy attempt
+clears it; quitting also discards it. Other actions do not establish that Claude
+Copy recovered.
+
 ## Files and third parties
 
 Setup saves its current step and your explicit test confirmations in this app's macOS preferences. A fingerprint of the helper executable ties confirmations to the build you tested. These preferences stay on this Mac. Permissions, connection state and profile-match results are checked again, not restored as trusted from saved progress. Setup does not record the test actions or text you enter.

@@ -29,7 +29,7 @@ if [[ "$(/usr/bin/uname -s)" == Darwin ]]; then
     helper/Sources/SetupState.swift helper/Sources/SetupDeviceOperation.swift tests/device-bridge.swift \
     -module-cache-path build/module-cache -framework AppKit -o build/tests/device-bridge
   build/tests/device-bridge
-  "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/ControllerActions.swift tests/controller-targets.swift \
+  "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/ControllerActions.swift helper/Sources/HelperHealth.swift tests/controller-targets.swift \
     -module-cache-path build/module-cache -framework Carbon -framework AppKit -o build/tests/controller-targets
   build/tests/controller-targets
   "$compiler" -tools-directory "${compiler%/*}" -sdk "$sdk" helper/Sources/WorkspaceShortcut.swift tests/shortcut-events.swift \

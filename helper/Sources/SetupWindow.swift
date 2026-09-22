@@ -313,6 +313,7 @@ final class SetupWindow: NSWindowController, NSWindowDelegate {
         labels["profile"]?.stringValue = message
         labels["summary"]?.stringValue = "Apps: \(state.appsReady ? "compatible installation detected" : "needs attention")\n\(current.accessibilityTitle)\n\(current.inputMonitoringTitle)\n\(current.connectionTitle)\nProfile: \(state.profileMatches ? "verified this session" : "check required")"
         live.stringValue = state.busy ? "Device operation in progress. Keep USB connected." : "\(current.connectionTitle) · \(current.switchingTitle)"
+        if let failure = current.claudeCopyFailure { live.stringValue += "\n" + failure.title }
         next.title = state.step == .ready ? "Finish setup" : "Continue"
         next.isEnabled = state.canContinue
         back.isEnabled = state.step != .welcome && !isBusy
