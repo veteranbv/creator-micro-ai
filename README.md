@@ -8,6 +8,8 @@ Work Louder built a fantastic tactile platform. This project builds on it: a sha
 
 Start with the [Creator Micro 2 from Work Louder](https://worklouder.cc/creator-micro-2). You still need the hardware and Work Louder's Input app. This is an independent enthusiast project, not an official, sponsored or endorsed Work Louder release. Vendor names belong to their respective owners. This kit does not distribute firmware or Input software.
 
+[Watch the 99-second controller demo](https://veteranbv.github.io/creator-micro-ai/demo.html), with captions and a downloadable video.
+
 ## Four layers, one muscle memory
 
 | Layer | Workspace brought forward |

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A 99-second demonstration of the independent Creator Micro AI configuration kit for macOS.">
+  <title>Creator Micro AI · controller demo</title>
+  <style>
+    :root{color-scheme:dark}*{box-sizing:border-box}
+    body{margin:0;background:#10151b;color:#f4f2ec;font:16px/1.5 system-ui,sans-serif}
+    main{max-width:1040px;margin:auto;padding:32px 24px}a{color:#8fdfff}
+    h1{font-size:clamp(30px,5vw,48px);letter-spacing:-.04em;margin:12px 0}
+    video{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;background:#090d11;border-radius:12px}
+    .note,footer{color:#a9b8c4;font-size:14px}summary{cursor:pointer}
+    a:focus-visible,summary:focus-visible{outline:3px solid #fff;outline-offset:4px}
+    footer{border-top:1px solid #34404a;margin-top:28px;padding-top:16px}
+    @media(max-width:600px){main{padding:24px 16px}}
+  </style>
+</head>
+<body>
+<main>
+  <nav aria-label="Project"><a href="layout.html">Interactive layout</a> · <a href="https://github.com/veteranbv/creator-micro-ai">Source and setup</a></nav>
+  <h1>See the controller in action.</h1>
+  <p>A 99-second look at switching desktop workspaces and using the shared controls on Work Louder's Creator Micro 2.</p>
+  <video controls playsinline preload="none" width="1920" height="1080" poster="assets/creator-micro-device.png" aria-label="Creator Micro AI controller demonstration" aria-describedby="demo-notes">
+    <source src="assets/creator-micro-demo.mp4" type="video/mp4">
+    <track kind="captions" src="assets/creator-micro-demo.vtt" srclang="en" label="English">
+    Your browser cannot play this video. <a href="assets/creator-micro-demo.mp4">Download the MP4</a> or read the transcript below.
+  </video>
+  <p><a href="assets/creator-micro-demo.mp4" download>Download the video (MP4)</a> · <a href="https://github.com/veteranbv/creator-micro-ai/releases">Get the signed pre-release</a></p>
+  <p class="note" id="demo-notes">Independent macOS pre-release, not an official Work Louder product. The four layers select views inside the ChatGPT and Claude desktop apps, not their command-line tools. Dictation uses your separately configured dictation app. The dial press opens search; the pencil key starts a new chat; the hand key sends Escape, whose effect depends on the foreground app. “Hands-free” in the narration means less reaching for the keyboard.</p>
+  <details>
+    <summary>Transcript and visual description</summary>
+    <p><strong>Visual description:</strong> The controller is held in front of a monitor showing the layout guide. Around 35 seconds, the presenter cycles its layers: the controller lighting changes and desktop app views come forward. The presenter then points to the shared keys, joystick and dial. This is a walkthrough, not a demonstration of every listed action.</p>
+    <p><strong>0:00:</strong> All right, I want to do a quick demonstration for what I think is the best setup for the Work Louder Creator Micro 2.</p>
+    <p><strong>0:11:</strong> For me, I use the Claude Desktop and ChatGPT desktop apps all the time. I use it for coding. I often switch between Claude Chat, Claude Code, ChatGPT, and Codex all the time every day.</p>
+    <p><strong>0:25:</strong> And if you want a hands-off experience, you can use this. I created a helper app that you can download off of my GitHub, completely free, that allows you to quickly do things like change to Chat, Codex, ChatGPT, and back to Claude Code.</p>
+    <p><strong>0:49:</strong> It is really flexible, easy, gives you a whole set of, I think, the best set of keys that's out there for working completely hands-free, everything from approval, denial, changing the model, doing dictation, submission, new line.</p>
+    <p><strong>1:10:</strong> The joystick gives you access to select all, paste, tab, and a standard copy. You can also click the dial to search past chats, create new chats, and stop activity.</p>
+    <p><strong>1:30:</strong> This works the same across all four different form factors. Makes it really flexible and easy to use.</p>
+    <p class="note">Transcript and captions were transcribed automatically, with product names corrected. Timing is approximate. The four “form factors” mentioned are the four app/view layers.</p>
+  </details>
+  <footer>Built on <a href="https://worklouder.cc/creator-micro-2">Work Louder's Creator Micro 2</a> and Input. Not sponsored or endorsed by Work Louder. This page uses a native video player with no analytics or third-party video embed.</footer>
+</main>
+</body>
+</html>
