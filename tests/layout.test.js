@@ -89,3 +89,25 @@ test('the actual device photo is a separate reference, not a tappable board',()=
  assert.match(fs.readFileSync(path.join(root,'README.md'),'utf8'),/\]\(docs\/assets\/creator-micro-device.png\)/);
  assert.doesNotMatch(html,/generic stand-ins|chain cap<|No vendor logo or keycap artwork is reproduced/);
 });
+
+test('the public demo uses local media without autoplay or third-party embeds',()=>{
+ const demo=fs.readFileSync(path.join(root,'docs/demo.html'),'utf8');
+ assert.match(demo,/<video controls playsinline preload="none"/);
+ assert.match(demo,/video\{[^}]*width:100%;height:auto;/);
+ assert.doesNotMatch(demo,/autoplay|<iframe|<script/i);
+ assert.match(demo,/<track kind="captions"[^>]*srclang="en"/);
+ assert.match(demo,/<summary>Transcript and visual description<\/summary>/);
+ for(const match of demo.matchAll(/(?:src|poster)="([^"]+)"/g)){
+  assert.ok(!match[1].includes('://'));
+  assert.ok(fs.statSync(path.join(root,'docs',match[1])).isFile());
+ }
+ const video=fs.readFileSync(path.join(root,'docs/assets/creator-micro-demo.mp4'));
+ assert.equal(video.toString('ascii',4,8),'ftyp');
+ assert.ok(video.length>1000000&&video.length<40*1024*1024);
+ const captions=fs.readFileSync(path.join(root,'docs/assets/creator-micro-demo.vtt'),'utf8');
+ assert.ok(captions.startsWith('WEBVTT\n'));
+ assert.equal((captions.match(/ --> /g)||[]).length,15);
+ for(const entry of [html,fs.readFileSync(path.join(root,'README.md'),'utf8')]){
+  assert.ok(entry.includes('https://veteranbv.github.io/creator-micro-ai/demo.html'));
+ }
+});
