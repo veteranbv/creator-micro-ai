@@ -1,4 +1,5 @@
-# Vendored from veteranbv/homelab (docs/standards/templates/review/files/).
+# Vendored copy of the shared review-contract smoke test. Do not edit here;
+# change it at its source and re-vendor.
 # Standard-library smoke test for the vendored review contract; the full
 # conformance matrix runs at the source (tools/tests/test_review_contract.py).
 """The vendored contract loads uninstalled and still qualifies review evidence.
