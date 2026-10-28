@@ -1,7 +1,12 @@
 # Vendored from veteranbv/homelab (docs/standards/templates/review/files/).
 # Standard-library smoke test for the vendored review contract; the full
 # conformance matrix runs at the source (tools/tests/test_review_contract.py).
-"""The vendored contract loads uninstalled and still qualifies real evidence."""
+"""The vendored contract loads uninstalled and still qualifies review evidence.
+
+The fixture is real Codex evidence with every identity replaced by a synthetic
+one (owner, repository, PR, commits, comment IDs, links); markers, timing and
+SHA relationships are unchanged.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +20,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CONTRACT = HERE / "review_contract.py"
-FIXTURE = HERE / "fixtures" / "codex_review" / "qualified_homelab_547.json"
+FIXTURE = HERE / "fixtures" / "codex_review" / "synthetic_review.json"
 
 _spec = importlib.util.spec_from_file_location("review_contract", CONTRACT)
 assert _spec is not None and _spec.loader is not None
@@ -40,7 +45,7 @@ class ReviewContractSmokeTest(unittest.TestCase):
         self.assertFalse(verdict.qualified)
         self.assertIn(reason, verdict.reasons)
 
-    def test_real_evidence_qualifies(self) -> None:
+    def test_evidence_qualifies(self) -> None:
         verdict = rc.evaluate(_base())
         self.assertTrue(verdict.qualified, verdict.reasons)
 
@@ -72,6 +77,12 @@ class ReviewContractSmokeTest(unittest.TestCase):
     def test_edited_request_blocks(self) -> None:
         snapshot = _base()
         _request(snapshot)["edited"] = True
+        self.assertFalse(rc.evaluate(snapshot).qualified)
+
+    def test_request_for_another_head_does_not_authorize(self) -> None:
+        snapshot = _base()
+        head = snapshot["head_sha"]
+        _request(snapshot)["body"] = f"@codex review {'0' * 40}\nThe new head is {head}."
         self.assertFalse(rc.evaluate(snapshot).qualified)
 
     def test_new_head_invalidates_review(self) -> None:
