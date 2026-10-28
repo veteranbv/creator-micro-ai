@@ -25,12 +25,27 @@ test('review gate runs only the trusted base evaluator with a read-only token',(
  assert.match(gate,/python3 -I "\$script"/);
  for(const legacy of ['review_gate.py','test_review_gate.py'])assert.ok(!fs.existsSync(path.join(root,'.github/scripts',legacy)),legacy);
 });
+test('trusted review gate runs the default-branch evaluator with a read-only token',()=>{
+ const gate=read('.github/workflows/review-gate-trusted.yml');
+ assert.match(gate,/^on:\n(?:  #[^\n]*\n)*  pull_request_target:  # zizmor: ignore\[dangerous-triggers\]\n    types: \[opened, synchronize\]\n\n/m);
+ assert.match(gate,/^permissions: \{\}\n/m);
+ assert.match(gate,/^jobs:\n  review-gate:\n/m);
+ assert.match(gate,/timeout-minutes: 5\n/);
+ assert.equal([...gate.matchAll(/uses:\s*actions\/checkout@/g)].length,1);
+ assert.match(gate,/ref: \$\{\{ github\.sha \}\}\n\s+path: trusted\n\s+persist-credentials: false\n/);
+ assert.match(gate,/sparse-checkout: \|\n\s+\.github\/scripts\/review_qualification\.py\n\s+\.github\/scripts\/review_contract\.py\n/);
+ assert.doesNotMatch(gate,/pull_request\.(?:head|base)\.(?:sha|ref)\s*\}\}\n\s+path:/);
+ assert.doesNotMatch(gate,/: write\b/);
+ assert.match(gate,/python3 -I "\$script"/);
+});
 test('review retrigger admits only the Codex bot and never checks out code',()=>{
  const retrigger=read('.github/workflows/review-gate-retrigger.yml');
  assert.doesNotMatch(retrigger,/uses:\s*actions\/checkout/);
  const logins=[...retrigger.matchAll(/user\.login == '([^']+)'/g)].map(m=>m[1]);
- assert.deepEqual(logins,['chatgpt-codex-connector[bot]','chatgpt-codex-connector[bot]']);
- assert.equal([...retrigger.matchAll(/user\.type == 'Bot'/g)].length,2);
+ assert.deepEqual(logins,['chatgpt-codex-connector[bot]']);
+ assert.equal([...retrigger.matchAll(/user\.type == 'Bot'/g)].length,1);
+ assert.match(retrigger,/^on:\n(?:  #[^\n]*\n)*  issue_comment:/m);
+ assert.doesNotMatch(retrigger,/^  pull_request_review:/m);
  assert.match(retrigger,/select\(\.name == "review-gate"\)/);
 });
 test('published Markdown links resolve within this repository',()=>{

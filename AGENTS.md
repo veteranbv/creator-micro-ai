@@ -18,7 +18,8 @@ This is a fan-made configuration kit for Work Louder's Creator Micro 2, built on
 
 - Finish and test a coherent change locally, then run a local code and security review (`/code-review` and `/security-review` in Claude Code, or `codex review --base main` in Codex CLI) before asking for remote review.
 - Use PRs for main. The owner requests remote Codex review for the exact pushed head; a new push needs a new request. Address every finding on the same PR and resolve its thread. After three rounds that still find substantive issues, stop and reconsider the change.
-- Required checks are `quality` and `review-gate`, including for administrators. `review-gate` runs only base-branch code with a read-only token and never runs PR code. Do not bypass failed checks.
+- Required checks are `quality` and `review-gate`, including for administrators. `review-gate` comes from `review-gate-trusted.yml` on `pull_request_target`: GitHub runs the default branch's copy, so a PR cannot rewrite it, and it checks out only the evaluator at the default-branch tip with a read-only token, never PR code. Do not bypass failed checks.
+- Protection pins `review-gate` to the GitHub Actions app, not to that workflow, so a PR could add its own job of the same name. Merge only with `homelab pr merge <n> --repo veteranbv/creator-micro-ai --yes`, which counts the trusted run alone; never the merge button or auto-merge. The retrigger listens to `issue_comment` only, which runs the default branch's copy.
 - No AI attribution in commits, titles or descriptions, and commits come from a person's identity, never an app or bot account; `review-gate` rejects both.
 
 ### Review guidelines
