@@ -6,7 +6,9 @@ Run `bash scripts/test.sh`. Linux covers profile, bridge, privacy and review-pol
 
 Hardware and app versions are part of compatibility. For an action-routing change, complete the matrix in docs/verification.md. Never use destructive commands as approval test fixtures; asking permission to list a disposable test directory is sufficient.
 
-Use `codex/` for development branches. After the final push, the repository owner requests `@codex review <full current head SHA>`. The review gate waits for an actual matching Codex review, not an eyes reaction. Unresolved P0/P1 findings block the gate. Missing reviews, stale reviews or incomplete pagination do not silently pass. Resolve findings, rerun checks and request a new review when the head changes.
+Use `codex/` for development branches. All PRs must pass `quality` and the repository review gate. The repository owner controls the exact-head Codex review request; external PRs never receive credentials.
+
+The review gate is a short check that never waits for a model. It passes only when the owner's `@codex review` request names the exact current head commit, Codex has recorded a completed code review of that commit with its receipt, and every review thread is resolved. Security review is advisory, but its unresolved findings block. Marking a draft ready, reopening, force-pushing or changing the base starts a new review generation, so earlier review evidence no longer counts. Commits, titles and descriptions must not carry AI attribution lines, and commits must come from a person's identity rather than an app or bot account (Dependabot excepted); the gate rejects both. The gate runs only base-branch code with a read-only token and never checks out PR code. Fix findings on the same PR, resolve their threads and request a new review when the head changes.
 
 Do not submit screenshots of private conversations, production credentials, local preference exports, diagnostic recordings or device backups. See PRIVACY.md and SECURITY.md.
 

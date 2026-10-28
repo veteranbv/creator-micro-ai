@@ -6,13 +6,32 @@ const path=require('node:path');
 const {execFileSync}=require('node:child_process');
 const root=path.join(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
-test('actions are SHA-pinned and the review verdict uses trusted base code',()=>{
+test('actions are SHA-pinned',()=>{
  for(const name of fs.readdirSync(path.join(root,'.github/workflows'))){
   const yaml=read('.github/workflows/'+name);
   for(const match of yaml.matchAll(/uses:\s*([^\s#]+)/g))assert.match(match[1],/@[0-9a-f]{40}$/);
  }
- assert.match(read('.github/workflows/review-gate.yml'),/ref: \$\{\{ github.event.pull_request.base.sha \}\}/);
- assert.doesNotMatch(read('.github/workflows/review-gate-retrigger.yml'),/uses:\s*actions\/checkout/);
+});
+test('review gate runs only the trusted base evaluator with a read-only token',()=>{
+ const gate=read('.github/workflows/review-gate.yml');
+ assert.match(gate,/^on:\n  pull_request:\n    types: \[opened, synchronize\]\n\n/m);
+ assert.match(gate,/^jobs:\n  review-gate:\n/m);
+ assert.match(gate,/timeout-minutes: 5\n/);
+ assert.equal([...gate.matchAll(/uses:\s*actions\/checkout@/g)].length,1);
+ assert.match(gate,/ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}\n\s+path: trusted\n\s+persist-credentials: false\n/);
+ assert.match(gate,/sparse-checkout: \|\n\s+\.github\/scripts\/review_qualification\.py\n\s+\.github\/scripts\/review_contract\.py\n/);
+ assert.doesNotMatch(gate,/ref: \$\{\{[^}]*head/);
+ assert.doesNotMatch(gate,/: write\b/);
+ assert.match(gate,/python3 -I "\$script"/);
+ for(const legacy of ['review_gate.py','test_review_gate.py'])assert.ok(!fs.existsSync(path.join(root,'.github/scripts',legacy)),legacy);
+});
+test('review retrigger admits only the Codex bot and never checks out code',()=>{
+ const retrigger=read('.github/workflows/review-gate-retrigger.yml');
+ assert.doesNotMatch(retrigger,/uses:\s*actions\/checkout/);
+ const logins=[...retrigger.matchAll(/user\.login == '([^']+)'/g)].map(m=>m[1]);
+ assert.deepEqual(logins,['chatgpt-codex-connector[bot]','chatgpt-codex-connector[bot]']);
+ assert.equal([...retrigger.matchAll(/user\.type == 'Bot'/g)].length,2);
+ assert.match(retrigger,/select\(\.name == "review-gate"\)/);
 });
 test('published Markdown links resolve within this repository',()=>{
  const files=fs.readdirSync(root).filter(n=>n.endsWith('.md')).concat(fs.readdirSync(path.join(root,'docs')).filter(n=>n.endsWith('.md')).map(n=>'docs/'+n));

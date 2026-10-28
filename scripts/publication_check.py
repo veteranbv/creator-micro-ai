@@ -30,7 +30,7 @@ URL = re.compile(
     rb"|(?<![\w+./:-])/{2,}(?=[\w%~!$&*+,;=:@.-]|\[[0-9a-fA-FvV:])[^\s<>\"']+))", re.IGNORECASE)
 # These exact references are files, not hosts. URLs never use this exception.
 FILE_REFERENCES = {
-    "README.md", "CONTRIBUTING.md", "PRIVACY.md", "AGENTS.md", "NOTICE.md", "SECURITY.md",
+    "README.md", "CONTRIBUTING.md", "PRIVACY.md", "AGENTS.md", "CLAUDE.md", "NOTICE.md", "SECURITY.md",
     "gotchas.md", "repository-admin.md", "setup.md", "verification.md", "releases.md",
     "build.sh", "device.sh", "icon.sh", "test.sh", "install.py", "example.py", "fixture.py", "notes.md",
     "release.py", "source.zip", "submission.zip", "code-review.md",
