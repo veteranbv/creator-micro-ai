@@ -33,7 +33,7 @@ FILE_REFERENCES = {
     "README.md", "CONTRIBUTING.md", "PRIVACY.md", "AGENTS.md", "NOTICE.md", "SECURITY.md",
     "gotchas.md", "repository-admin.md", "setup.md", "verification.md", "releases.md",
     "build.sh", "device.sh", "icon.sh", "test.sh", "install.py", "example.py", "fixture.py", "notes.md",
-    "release.py", "source.zip", "submission.zip",
+    "release.py", "source.zip", "submission.zip", "code-review.md",
     "ChatGPT.app", "Claude.app", "input.app", "AI.app",
 }
 # DNS suffixes also occur in source-language member expressions. Keep these
@@ -51,6 +51,8 @@ SOURCE_REFERENCES = {
     "release.run", "download.name", "self.fail",
     "setupItem.target", "DispatchQueue.global", "pipe.fileHandleForReading.read",
     "NSWorkspace.shared.open", "back.target", "next.target", "relaunch.run",
+    # Vendored review evaluator (.github/scripts/review_*.py).
+    "collections.abc", "spec.name",
     "self.health", "self.operation.run", "window.center", "app.run",
     # Fixed macOS System Settings pane identifier, not a network host.
     "com.apple.preference.security",
