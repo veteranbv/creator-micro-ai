@@ -5,17 +5,45 @@ on:
   pull_request:
 permissions:
   contents: read
+# Cancel superseded PR validation only; every main run keeps its own group.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  # Cheap workflow checks stay on Linux; macOS minutes cost several times more.
+  workflow-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Enforce workflow action pinning
+        # Stdlib only; also fails on pull_request_target outside the trusted gate.
+        run: python3 -I .github/scripts/check_workflow_pinning.py .github/workflows
+      - name: Install zizmor
+        env:
+          # Version and checksum are from the upstream v1.31.1 release assets.
+          ZIZMOR_VERSION: "1.31.1"
+          ZIZMOR_SHA256: "d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99"
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/zizmor.tar.gz"
+          curl -fsSL -o "$archive" \
+            "https://github.com/zizmorcore/zizmor/releases/download/v${ZIZMOR_VERSION}/zizmor-x86_64-unknown-linux-gnu.tar.gz"
+          printf '%s  %s\n' "$ZIZMOR_SHA256" "$archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" zizmor
+      - name: Audit workflow security
+        # Offline static audit; intentional exceptions carry an inline reason.
+        run: '"$RUNNER_TEMP/zizmor" --offline .github/workflows'
   tests:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # Slowest recent success: 3.3 min on macOS.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -25,11 +53,14 @@ jobs:
         run: bash scripts/test.sh
   quality:
     if: always()
-    needs: [tests]
+    needs: [workflow-policy, tests]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
-      - name: Require every platform to pass
+      - name: Require every check to pass
         env:
+          POLICY_RESULT: ${{ needs.workflow-policy.result }}
           RESULT: ${{ needs.tests.result }}
-        run: test "$RESULT" = success
+        run: |
+          test "$POLICY_RESULT" = success
+          test "$RESULT" = success
